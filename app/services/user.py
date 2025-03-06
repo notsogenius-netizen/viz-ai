@@ -1,5 +1,6 @@
 from app.models.user import UserModel
 from fastapi.exceptions import HTTPException
+from app.utils.crypt import get_password_hash
 
 async def create_user_account(data, db):
     user = db.query(UserModel).filter(UserModel.email == data.email).first()
@@ -9,7 +10,7 @@ async def create_user_account(data, db):
     new_user = UserModel(
         name = data.name,
         email = data.email,
-        password = data.password,
+        password = get_password_hash(data.password),
         tenant_id = data.tenant_id
     )
     db.add(new_user)

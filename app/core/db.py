@@ -9,8 +9,10 @@ from app.models.project import ProjectModel
 from app.models.role import RoleModel 
 from app.models.user_project_role import UserProjectRole
 
+print(settings.DB_URI)
+
 engine = create_engine(
-    "postgresql://postgres:mypassword@localhost:5432/viz_ai_user_service",
+    url= settings.DB_URI,
     pool_pre_ping= True,
     pool_recycle= 300,
     pool_size= 5,
