@@ -9,7 +9,7 @@ async def create_tenants_service(data, db):
     
     new_tenant = TenantModel(
         name = data.name,
-        super_user_id = None
+        super_user_id= data.super_user_id if data.super_user_id else None
     )
     db.add(new_tenant)
     db.commit()
