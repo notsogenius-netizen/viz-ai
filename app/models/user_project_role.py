@@ -1,6 +1,6 @@
 from sqlalchemy import Column, String, UUID, ForeignKey, DateTime, func
 from sqlalchemy.orm import relationship
-from app.core.db import Base
+from app.core.base import Base
 from uuid import uuid4
 
 class UserProjectRole(Base):
@@ -12,5 +12,6 @@ class UserProjectRole(Base):
     role_id = Column(UUID(as_uuid= True), ForeignKey("roles.id"))
     created_at= Column(DateTime, nullable= False, server_default=func.now())
 
-    user = relationship("User", back_populates="project_roles")
-    project = relationship("Project", back_populates="project_roles")
+    user = relationship("UserModel", back_populates="user_project_roles")
+    project = relationship("ProjectModel", back_populates="user_project_roles")
+    role = relationship("RoleModel", back_populates= "user_project_roles")
