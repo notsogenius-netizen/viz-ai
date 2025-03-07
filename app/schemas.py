@@ -1,15 +1,15 @@
-from pydantic import BaseModel, EmailStr, UUID4
+from pydantic import BaseModel, EmailStr
 from typing import Optional
 
 class CreateUserRequest(BaseModel):
     name: str
     email: EmailStr
     password: str
-    tenant_id: Optional[UUID4] = None
+    tenant_id: Optional[int] = None
 
 class CreateTenantRequest(BaseModel):
     name: str
-    super_user_id: Optional[UUID4] = None
+    super_user_id: Optional[int] = None
 
 class LoginUserRequest(BaseModel):
     email: str

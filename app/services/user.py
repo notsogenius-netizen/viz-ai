@@ -1,6 +1,6 @@
 from app.models.user import UserModel
 from fastapi.exceptions import HTTPException
-from fastapi import status, Response
+from fastapi import status, Response, Request
 from sqlalchemy.orm import Session
 from app.core.settings import settings
 from app.utils.crypt import get_password_hash, verify_password
@@ -38,8 +38,11 @@ async def create_user(data: CreateUserRequest, response: Response, db: Session):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    set_auth_cookies(response, access_token, refresh_token)    
-    return new_user
+    
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token
+    }
 
 async def login_user(data: LoginUserRequest, response: Response, db: Session):
     user = db.query(UserModel).filter(UserModel.email == data.email).first()
@@ -64,9 +67,10 @@ async def login_user(data: LoginUserRequest, response: Response, db: Session):
     db.commit()
     db.refresh(user)
 
-    set_auth_cookies(response, access_token, refresh_token)
-
-    return True
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token
+    }
 
 async def logout_user(response, db, user_id):
     user = db.query(UserModel).filter(UserModel.id == user_id).first()
@@ -76,3 +80,29 @@ async def logout_user(response, db, user_id):
 
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token")
+
+async def refresh_user_token(request: Request, response: Response, db: Session):
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing refresh token")
+
+    user = db.query(UserModel).filter(UserModel.refresh_token == refresh_token).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+
+    access_token_data= {
+        "user_id": user.id,
+        "role": None
+    }
+
+    new_access_token = create_token(data= access_token_data, expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+
+    response.set_cookie(
+        key="access_token",
+        value=new_access_token,
+        httponly=True,  
+        secure=True,    
+        samesite="Lax"  
+    )
+
+    return {"message": "Access token refreshed"}
