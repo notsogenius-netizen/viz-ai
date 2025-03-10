@@ -1,9 +1,12 @@
-from sqlalchemy import Column, String, UUID
-from app.core.db import Base
-from uuid import uuid
+from sqlalchemy import Column, String, Integer
+from sqlalchemy.orm import relationship
+from app.core.base import Base
+from uuid import uuid4
 
-class Role(Base):
+class RoleModel(Base):
     __tablename__ = "roles"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String, unique=True, nullable=False)
+
+    user_project_roles = relationship("UserProjectRole", back_populates= "role")
