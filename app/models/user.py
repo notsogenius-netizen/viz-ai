@@ -58,3 +58,9 @@ class UserProjectRole(Base):
     user = relationship("UserModel", back_populates="user_project_roles")
     project = relationship("ProjectModel", back_populates="user_project_roles")
     role = relationship("RoleModel", back_populates= "user_project_roles")
+
+    preprocessing_records = relationship(
+        "PreProcessing",
+        back_populates="user_project_role",
+        cascade="all, delete-orphan"
+    )
