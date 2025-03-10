@@ -1,4 +1,4 @@
-from app.models.tenant import TenantModel
+from app.models.user import TenantModel
 from fastapi.exceptions import HTTPException
 
 async def create_tenants_service(data, db):
