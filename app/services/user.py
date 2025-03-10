@@ -1,4 +1,4 @@
-from app.models.user import UserModel
+from app.models.user import UserModel, TenantModel
 from fastapi.exceptions import HTTPException
 from fastapi import status, Response, Request
 from sqlalchemy.orm import Session
@@ -118,3 +118,18 @@ async def refresh_user_token(request: Request, response: Response, db: Session):
         return {"message": "Access token refreshed"}
     except Exception as e:
         raise HTTPException(status_code= 500, detail= e)
+
+async def create_tenants_service(data, db):
+    tenant = db.query(TenantModel).filter(TenantModel.name == data.name).first()
+
+    if tenant:
+        raise HTTPException(status_code=442, detail="Tenant already exists")
+    
+    new_tenant = TenantModel(
+        name = data.name,
+        super_user_id= data.super_user_id if data.super_user_id else None
+    )
+    db.add(new_tenant)
+    db.commit()
+    db.refresh(new_tenant)
+    return new_tenant

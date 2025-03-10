@@ -2,9 +2,9 @@ from fastapi import APIRouter, status, Depends, Response, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from app.core.db import get_db
-from app.services.user import create_user, login_user, logout_user, refresh_user_token
+from app.services.user import create_user, login_user, logout_user, refresh_user_token, create_tenants_service
 from app.utils.auth_dependencies import get_current_user
-from app.schemas import CreateUserRequest, LoginUserRequest
+from app.schemas import CreateUserRequest, LoginUserRequest, CreateTenantRequest
 
 router = APIRouter(
     prefix="/users",
@@ -36,3 +36,8 @@ async def get_user(data = Depends(get_current_user)):
 async def refresh_token(request: Request, response: Response, db: Session = Depends(get_db)):
     res = await refresh_user_token(request, response, db)
     return res
+
+@router.post('/create-tenant', status_code= status.HTTP_201_CREATED)
+async def create_tenant(data: CreateTenantRequest, db: Session = Depends(get_db)):
+    await create_tenants_service(data= data, db= db)
+    return JSONResponse(content= {"message": "Tenant has been registered"})
