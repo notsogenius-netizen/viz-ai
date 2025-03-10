@@ -1,6 +1,6 @@
 # Viz Ai Authentication System
 
-This document provides an overview of the authentication system implemented in FastAPI, supporting **JWT-based authentication with refresh tokens stored in cookies**.
+This document provides an overview of the authentication system implemented in FastAPI, supporting **JWT-based authentication with refresh tokens**.
 
 ---
 

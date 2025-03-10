@@ -3,11 +3,11 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 from typing import Generator
 from app.core.settings import settings
 from app.core.base import Base
-from app.models.tenant import TenantModel
+from app.models.user import TenantModel
 from app.models.user import UserModel
-from app.models.project import ProjectModel
-from app.models.role import RoleModel 
-from app.models.user_project_role import UserProjectRole
+from app.models.user import ProjectModel
+from app.models.user import RoleModel 
+from app.models.user import UserProjectRole
 
 
 engine = create_engine(
