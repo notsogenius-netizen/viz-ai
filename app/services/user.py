@@ -6,6 +6,7 @@ from app.core.settings import settings
 from app.utils.crypt import get_password_hash, verify_password
 from app.utils.jwt import create_token, decode_token
 from app.utils.cookies import set_auth_cookies
+from app.utils.auth_dependencies import get_user_role
 from app.schemas import LoginUserRequest, CreateUserRequest
 from datetime import timedelta
 
@@ -40,6 +41,8 @@ async def create_user(data: CreateUserRequest, response: Response, db: Session):
         db.commit()
         db.refresh(new_user)
         
+        set_auth_cookies(response, access_token, refresh_token)
+
         return {
             "access_token": access_token,
             "refresh_token": refresh_token
@@ -56,9 +59,11 @@ async def login_user(data: LoginUserRequest, response: Response, db: Session):
         if not verify_password(data.password, user.password):
             raise HTTPException(status_code= status.HTTP_401_UNAUTHORIZED, detail="Password doesn't match")
         
+        role = get_user_role(user_id= user.id, db= db)
+
         access_token_data= {
             "user_id": user.id,
-            "role": None
+            "role": role
         }
         access_token= create_token(data= access_token_data, expires_delta= timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
 
@@ -70,6 +75,8 @@ async def login_user(data: LoginUserRequest, response: Response, db: Session):
         user.refresh_token = get_password_hash(refresh_token)
         db.commit()
         db.refresh(user)
+
+        set_auth_cookies(response, access_token, refresh_token)
 
         return {
             "access_token": access_token,
@@ -85,8 +92,8 @@ async def logout_user(response, db, user_id):
             user.refresh_token = None
             db.commit()
 
-        # response.delete_cookie("access_token")
-        # response.delete_cookie("refresh_token")
+        response.delete_cookie("access_token")
+        response.delete_cookie("refresh_token")
     except Exception as e:
         raise HTTPException(status_code= 500, detail= e)
 
