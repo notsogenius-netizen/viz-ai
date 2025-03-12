@@ -11,6 +11,7 @@ class ExternalDBModel(Base):
     domain = Column(String, nullable=False)
     db_metadata = Column(Text, nullable=True)
     schema_structure = Column(Text, nullable=True)
+    database_provider = Column(Text, nullable=True)
     created_at= Column(DateTime, nullable= False, server_default=func.now())
 
 

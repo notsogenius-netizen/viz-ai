@@ -5,7 +5,7 @@ from app.models.pre_processing import ExternalDBModel
 from app.models.user import UserProjectRole
 from app.utils.schema_structure import get_schema_structure
 from app.utils.auth_dependencies import get_current_user
-from app.schemas import ExternalDBCreateRequest, ExternalDBResponse, CurrentUser
+from app.schemas import ExternalDBCreateRequest, ExternalDBResponse, CurrentUser, UpdateDBRequest
 
 async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Session, current_user: CurrentUser):
     """
@@ -52,3 +52,26 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
         domain= db_entry.domain,
         schema_structure_string= schema_structure_string,
     )
+
+async def update_record_and_call_llm_service(data: UpdateDBRequest, db: Session, current_user: CurrentUser):
+    """
+        Updates the domain and sends the request to llm service.
+    """
+
+    user_id= current_user.user_id
+    user_role= current_user.role
+
+    db_entry= db.query(ExternalDBModel).filter(ExternalDBModel.id == data.db_entry_id).first()
+
+    schema_structure = db_entry.schema_structure
+    db_provider = db_entry.database_provider
+    db_entry.domain = data.domain
+    db.commit()
+    db.refresh(db_entry)
+
+    return {
+        "role": user_role,
+        "db_structure": schema_structure,
+        "domain": data.domain,
+        "database_provider": db_provider
+    }

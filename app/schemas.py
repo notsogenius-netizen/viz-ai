@@ -33,6 +33,10 @@ class ExternalDBResponse(BaseModel):
     db_metadata: Optional[str] = None
     schema_structure_string: str
 
+class UpdateDBRequest(BaseModel):
+    db_entry_id: int
+    domain: str
+
 class CurrentUser(BaseModel):
     user_id: int
     role: str
