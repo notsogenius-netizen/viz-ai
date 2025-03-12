@@ -11,7 +11,7 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
     """
     Connects to the external database, retrieves schema, and saves it in the internal database.
     """
-    print(current_user)
+
     user_id = current_user.user_id
     user_role = current_user.role
 
@@ -22,7 +22,7 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
     ).first()
     if not user_project_role:
         raise HTTPException(status_code=400, detail="User does not have a role in this project.")
-    print(user_project_role.id)
+
     # Retrieve schema structure
     schema_structure = get_schema_structure(data.connection_string)
     
@@ -43,11 +43,12 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
 
     db.commit()
     db.refresh(db_entry)
+    
+    schema_structure_string = json.dumps(schema_structure, indent=2)
 
     return ExternalDBResponse(
-        id=db_entry.id,
-        user_project_role_id=db_entry.user_project_role_id,
-        connection_string=db_entry.connection_string,
-        domain=db_entry.domain,
-        schema_structure=schema_structure,
+        user_role= user_role,
+        connection_string= db_entry.connection_string,
+        domain= db_entry.domain,
+        schema_structure_string= schema_structure_string,
     )

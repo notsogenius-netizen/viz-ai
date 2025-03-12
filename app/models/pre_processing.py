@@ -17,12 +17,12 @@ class ExternalDBModel(Base):
     user_project_role = relationship(
         "UserProjectRole",
         back_populates="external_db",
-        foreign_keys="[UserProjectRole.external_db_id]"  # ✅ Explicit foreign key mapping
+        foreign_keys="[UserProjectRole.external_db_id]"
     )
 
     queries = relationship(
         "GeneratedQuery",
-        back_populates="external_db",  # ✅ This must match the related attribute in GeneratedQuery
+        back_populates="external_db",
         cascade="all, delete-orphan"
     )
 
