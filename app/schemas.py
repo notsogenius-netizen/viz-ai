@@ -27,12 +27,11 @@ class ExternalDBCreateRequest(BaseModel):
     domain: str
 
 class ExternalDBResponse(BaseModel):
-    id: int
-    user_project_role_id: int
+    user_role: str
     connection_string: str
     domain: str
     db_metadata: Optional[str] = None
-    schema_structure: Dict[str, Any]
+    schema_structure_string: str
 
 class CurrentUser(BaseModel):
     user_id: int
