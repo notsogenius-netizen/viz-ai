@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, Dict, Any
 
 class CreateUserRequest(BaseModel):
     name: str
@@ -14,3 +14,25 @@ class CreateTenantRequest(BaseModel):
 class LoginUserRequest(BaseModel):
     email: str
     password: str
+
+class ExternalDBCreate(BaseModel):
+    user_project_role_id: int
+    connection_string: str
+    domain: str
+
+
+class ExternalDBCreateRequest(BaseModel):
+    project_id: int
+    connection_string: str
+    domain: str
+
+class ExternalDBResponse(BaseModel):
+    user_role: str
+    connection_string: str
+    domain: str
+    db_metadata: Optional[str] = None
+    schema_structure_string: str
+
+class CurrentUser(BaseModel):
+    user_id: int
+    role: str
