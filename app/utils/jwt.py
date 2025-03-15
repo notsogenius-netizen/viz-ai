@@ -1,6 +1,6 @@
 from fastapi import HTTPException, status
 from datetime import datetime, timedelta, timezone
-from jose import jwt
+from jose import jwt, JWTError
 from app.core.settings import settings
 
 def create_token(data: dict, expires_delta: timedelta = None):
@@ -13,4 +13,13 @@ def decode_token(token: str):
     try:
         return jwt.decode(token,key= settings.SECRET_KEY, algorithms= settings.ALGORITHM)
     except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code= status.HTTP_409_CONFLICT, detail="Token expired")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Token has expired"
+        )
+    
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, 
+            detail="Invalid token"
+        )

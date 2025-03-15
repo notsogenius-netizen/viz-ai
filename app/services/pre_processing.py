@@ -1,7 +1,9 @@
+import httpx
+import asyncio
 import json
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from app.models.pre_processing import ExternalDBModel
+from app.models.pre_processing import ExternalDBModel, GeneratedQuery
 from app.models.user import UserProjectRole
 from app.utils.schema_structure import get_schema_structure
 from app.utils.auth_dependencies import get_current_user
@@ -26,9 +28,9 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
 
         # Retrieve schema structure
         schema_structure = get_schema_structure(data.connection_string)
-        
+
         # Check if entry exists (Update case)
-        db_entry = db.query(ExternalDBModel).filter_by(user_project_role_id=user_project_role.id).first()
+        db_entry = db.query(ExternalDBModel).filter_by(user_project_role_id= user_project_role.id).first()
         if db_entry:
             db_entry.connection_string = data.connection_string
             db_entry.domain = data.domain
@@ -46,18 +48,22 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
         db.refresh(db_entry)
         
         schema_structure_string = json.dumps(schema_structure, indent=2)
+        
 
         return ExternalDBResponse(
-            user_role= user_role,
-            connection_string= db_entry.connection_string,
-            domain= db_entry.domain,
-            schema_structure_string= schema_structure_string,
+            role= user_role,
+            domain= data.domain if data.domain else None,
+            db_schema= schema_structure_string,
+            api_key= data.api_key,
+            db_type= data.db_type,
+            min_date= schema_structure["min_date"],
+            max_date= schema_structure["max_date"]
         )
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error processing external DB: {str(e)}")
 
-async def update_record_and_call_llm_service(data: UpdateDBRequest, db: Session, current_user: CurrentUser):
+async def update_record(data: UpdateDBRequest, db: Session, current_user: CurrentUser):
     """
         Updates the domain and sends the request to llm service.
     """
@@ -72,7 +78,9 @@ async def update_record_and_call_llm_service(data: UpdateDBRequest, db: Session,
 
         schema_structure = db_entry.schema_structure
         db_provider = db_entry.database_provider
-        
+        min_date = db_entry.min_date
+        max_date = db_entry.max_date
+
         db_entry.domain = data.domain
 
         db.commit()
@@ -80,10 +88,41 @@ async def update_record_and_call_llm_service(data: UpdateDBRequest, db: Session,
 
         return {
             "role": user_role,
-            "db_structure": schema_structure,
+            "db_schema": schema_structure,
+            "db_type": db_provider,
             "domain": data.domain,
-            "database_provider": db_provider
+            "min_date": min_date,
+            "max_date": max_date,
+            "api_key": ""
         }
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error updating record: {str(e)}")
+
+async def save_query_to_db(data, db: Session, db_entry_id):
+    """
+        Save the llm response to db.
+    """
+
+    external_db = db.query(ExternalDBModel).filter(ExternalDBModel.id == db_entry_id).first()
+    if not external_db:
+        raise HTTPException(status_code=404, detail="External DB not found")
+    for query in data.queries:
+        new_query = GeneratedQuery(
+            external_db_id= db_entry_id,
+            query_text=query.query,
+            explanation=query.explanation,
+            relevance=query.relevance,
+            is_time_based=query.is_time_based,
+            chart_type=query.chart_type
+        )
+        db.add(new_query)
+
+    db.commit()
+    return {"status": "success", "message": "Queries saved successfully"}
+
+async def post_to_llm(url: str, data: dict):
+    async with httpx.AsyncClient(timeout= 45.0) as client:
+        response = await client.post(url, json=data)
+        response.raise_for_status()  # Raise error if response status is not 200
+        return response.json()

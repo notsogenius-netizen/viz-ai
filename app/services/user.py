@@ -41,7 +41,7 @@ async def create_user(data: CreateUserRequest, response: Response, db: Session):
         db.commit()
         db.refresh(new_user)
         
-        set_auth_cookies(response, access_token, refresh_token)
+        # set_auth_cookies(response, access_token, refresh_token)
 
         return {
             "access_token": access_token,
@@ -76,7 +76,7 @@ async def login_user(data: LoginUserRequest, response: Response, db: Session):
         db.commit()
         db.refresh(user)
 
-        set_auth_cookies(response, access_token, refresh_token)
+        # response.headers["Authorization"] = f"Bearer {access_token}"
 
         return {
             "access_token": access_token,
