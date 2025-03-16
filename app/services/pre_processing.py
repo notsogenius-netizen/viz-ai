@@ -122,6 +122,10 @@ async def save_query_to_db(data, db: Session, db_entry_id):
     return {"status": "success", "message": "Queries saved successfully"}
 
 async def post_to_llm(url: str, data: dict):
+    """
+        Send a async post request to llm service.
+    """
+
     async with httpx.AsyncClient(timeout= 45.0) as client:
         response = await client.post(url, json=data)
         response.raise_for_status()  # Raise error if response status is not 200
