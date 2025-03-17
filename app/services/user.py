@@ -59,11 +59,11 @@ async def login_user(data: LoginUserRequest, response: Response, db: Session):
         if not verify_password(data.password, user.password):
             raise HTTPException(status_code= status.HTTP_401_UNAUTHORIZED, detail="Password doesn't match")
         
-        role = get_user_role(user_id= user.id, db= db)
-
+        # role = get_user_role(user_id= user.id, db= db)
+        
         access_token_data= {
             "user_id": user.id,
-            "role": role
+            "role": None
         }
         access_token= create_token(data= access_token_data, expires_delta= timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
 

@@ -23,25 +23,21 @@ class ExternalDBCreate(BaseModel):
 
 class ExternalDBCreateRequest(BaseModel):
     project_id: int
+    role: str
     connection_string: str
     domain: Optional[str] = None
     db_type: str
-    api_key: str
+    api_key: Optional[str] = None
 
 class ExternalDBResponse(BaseModel):
-    role: str
-    db_schema: str
-    db_type: str
-    domain: str
-    min_date: Optional[str] = None
-    max_date: Optional[str] = None
-    api_key:Optional[str] = None
-    db_metadata: Optional[str] = None
+    db_entry_id: int
 
 class   UpdateDBRequest(BaseModel):
+    project_id: int
     db_entry_id: int
     domain: str
+    api_key: Optional[str] =None
 
 class CurrentUser(BaseModel):
     user_id: int
-    role: str
+    role: Optional[str] = None
