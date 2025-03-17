@@ -45,3 +45,13 @@ class   UpdateDBRequest(BaseModel):
 class CurrentUser(BaseModel):
     user_id: int
     role: str
+    
+class NLQResponse(BaseModel):
+    api_key:Optional[str]=None
+    nl_query: str
+    db_schema: str
+    db_type: str
+    
+class ExternalDBCreateChatRequest(BaseModel):
+    nl_query:str
+    
