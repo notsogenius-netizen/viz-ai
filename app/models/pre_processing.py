@@ -1,6 +1,7 @@
 from sqlalchemy import Column, String, ForeignKey, DateTime, func, Integer, Text, Double, Boolean
 from sqlalchemy.orm import relationship
 from app.core.base import Base
+from app.models.post_processing import dashboard_query_association
 
 class ExternalDBModel(Base):
     __tablename__ = 'external_db'
@@ -16,6 +17,7 @@ class ExternalDBModel(Base):
     max_date = Column(DateTime, nullable= True)
     created_at= Column(DateTime, nullable= False, server_default=func.now())
 
+    dashboards = relationship("Dashboard", back_populates="external_db", cascade="all, delete-orphan")
 
     user_project_role = relationship(
         "UserProjectRole",
@@ -40,5 +42,7 @@ class GeneratedQuery(Base):
     is_time_based = Column(Boolean, nullable=False)
     chart_type = Column(String, nullable= False)
     created_at= Column(DateTime, nullable= False, server_default=func.now())
+
+    dashboards = relationship("Dashboard", secondary=dashboard_query_association, back_populates="queries")
 
     external_db = relationship("ExternalDBModel", back_populates="queries")

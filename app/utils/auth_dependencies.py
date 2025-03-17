@@ -6,6 +6,7 @@ from app.utils.jwt import decode_token
 
 def get_current_user(request: Request):
     auth_header = request.headers.get("Authorization")
+    print(auth_header)
     if not auth_header or not auth_header.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -23,4 +24,5 @@ def get_current_user(request: Request):
 def get_user_role(user_id: int, db: Session):
     user_project_roles = db.query(UserProjectRole).filter(UserProjectRole.user_id == user_id).first()
     role = db.query(RoleModel).filter(RoleModel.id == user_project_roles.role_id).first().name
+    print(role)
     return role
