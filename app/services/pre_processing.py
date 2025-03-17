@@ -34,8 +34,7 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
         if not new_user_project_role:
             raise HTTPException(status_code=400, detail="User does not have a role in this project.")
 
-        # Retrieve schema structure
-        schema_structure = get_schema_structure(data.connection_string)
+        schema_structure = get_schema_structure(data.connection_string,data.db_type)
 
         # Check if entry exists (Update case)
         db_entry = db.query(ExternalDBModel).filter_by(user_project_role_id= new_user_project_role.id).first()
@@ -150,7 +149,6 @@ async def save_query_to_db(queries, db: Session, db_entry_id: int):
 async def process_nl_to_sql_query(data: ExternalDBCreateChatRequest, db: Session, current_user: CurrentUser):
     try:
         user_id = current_user.user_id
-        user_role = current_user.role
 
         user_project_roles = db.query(UserProjectRole).filter(
             UserProjectRole.user_id == user_id
@@ -198,7 +196,7 @@ async def save_nl_sql_query(sql_response, db: Session, db_entry_id):
                 explanation=sql_response.get('explanation', 'Generated from natural language query'),
                 relevance=1.0, 
                 # is_time_based=False,  # You might want logic to detect this
-                chart_type=sql_response.get('chart_type')  # Default chart type for NL queries
+                chart_type=sql_response.get('chart_type') 
             )
             db.add(new_query)
             db.commit()
@@ -218,7 +216,7 @@ async def post_to_llm(url: str, data: dict):
 
     async with httpx.AsyncClient(timeout= 45.0) as client:
         response = await client.post(url, json=data)
-        response.raise_for_status()  # Raise error if response status is not 200
+        response.raise_for_status()  
         return response.json()
     
 async def post_to_nlq_llm(url:str, data:dict):
