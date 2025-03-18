@@ -32,7 +32,7 @@ class ExternalDBCreateRequest(BaseModel):
 class ExternalDBResponse(BaseModel):
     db_entry_id: int
 
-class   UpdateDBRequest(BaseModel):
+class UpdateDBRequest(BaseModel):
     project_id: int
     db_entry_id: int
     domain: str
@@ -51,3 +51,6 @@ class NLQResponse(BaseModel):
 class ExternalDBCreateChatRequest(BaseModel):
     nl_query:str
     
+class ExecuteQueryRequest(BaseModel):
+    external_db_id: int
+    query_id: int

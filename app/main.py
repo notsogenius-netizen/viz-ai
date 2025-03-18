@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from app.routes.user import router as user_router
 from app.routes.pre_processing import router as pre_processing_router
+from app.routes.post_processing import router as post_processing_router
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -20,3 +21,4 @@ def health_check():
 
 app.include_router(user_router)
 app.include_router(pre_processing_router)
+app.include_router(post_processing_router)

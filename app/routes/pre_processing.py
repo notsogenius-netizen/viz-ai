@@ -1,4 +1,5 @@
 import httpx
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.schemas import ExternalDBCreateRequest, ExternalDBResponse, CurrentUser, UpdateDBRequest,ExternalDBCreateChatRequest
@@ -111,29 +112,43 @@ async def update_record_and_call_llm(data: UpdateDBRequest, db: Session = Depend
 #     except httpx.HTTPStatusError as e:
 #         return {"status": "error", "message": str(e)}
 
-
+logger = logging.getLogger(__name__)
 @router.post("/nl-to-sql", status_code=status.HTTP_200_OK)
 async def convert_nl_to_sql(data: ExternalDBCreateChatRequest, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
-    url = "http://192.168.1.8:8001/api/nlq/convert_nl_to_sql"
+        url = "http://192.168.94.213:8001/api/nlq/convert_nl_to_sql"
+        try:
+              
+            logger.info("Received NL query: %s", data.nl_query)
+
+            nlq_data, db_entry_id = await process_nl_to_sql_query(data, db, current_user)
+            logger.info("Processed NL to SQL Query, Data: %s, DB Entry ID: %s", nlq_data, db_entry_id)
+
+            sql_response = await post_to_nlq_llm(url, nlq_data)
+            logger.info("Received SQL response: %s", sql_response)
+
+            save_result = await save_nl_sql_query(sql_response, db, db_entry_id)        
+            logger.info("Save result: %s", save_result)
+
+            return {
+                "status": "success",
+                "sql_query": sql_response,
+                "save_status": save_result
+            }
+
+        except httpx.HTTPStatusError as e:
+            logger.error("Error from NL to SQL service: %s", str(e))
+            raise HTTPException(
+                status_code=e.response.status_code,
+                detail=f"Error from NL to SQL service: {str(e)}"
+            )
     
-    try:
-        nlq_data, db_entry_id = await process_nl_to_sql_query(data, db, current_user)
-        sql_response = await post_to_nlq_llm(url, nlq_data)
-        save_result = await save_nl_sql_query(sql_response, db, db_entry_id)        
-        return {
-            "status": "success",
-            "sql_query": sql_response,
-            "save_status": save_result
-        }
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=e.response.status_code,
-            detail=f"Error from NL to SQL service: {str(e)}"
-        )
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error processing NL to SQL request: {str(e)}"
-        )
+        except HTTPException as e:
+            logger.error("HTTP Exception: %s", str(e))
+            raise e
+
+        except Exception as e:
+            logger.error("Unexpected Error processing NL to SQL request: %s", str(e), exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error processing NL to SQL request: {str(e)}"
+            )

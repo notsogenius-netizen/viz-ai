@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.orm import sessionmaker
 from app.models.pre_processing import ExternalDBModel
+from datetime import datetime, date
 
 def get_schema_structure(connection_string: str, db_type: str):
     engine = create_engine(connection_string)
@@ -85,8 +86,8 @@ def get_schema_structure(connection_string: str, db_type: str):
                             if max_date is None or result.max_date > max_date:
                                 max_date = result.max_date
 
-        schema_info["min_date"] = min_date
-        schema_info["max_date"] = max_date
+        schema_info["min_date"] = min_date.isoformat() if isinstance(min_date, (datetime, date)) else None
+        schema_info["max_date"] = max_date.isoformat() if isinstance(max_date, (datetime, date)) else None
         print(f"Database Date Range: Min Date: {min_date}, Max Date: {max_date}")
 
     except Exception as e:
