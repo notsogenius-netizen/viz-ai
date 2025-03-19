@@ -209,7 +209,7 @@ async def post_to_llm(url: str, data: dict):
         Send a async post request to llm service.
     """
 
-    async with httpx.AsyncClient(timeout= 45.0) as client:
+    async with httpx.AsyncClient(timeout= 60.0) as client:
         response = await client.post(url, json=data)
         response.raise_for_status()  
         return response.json()
