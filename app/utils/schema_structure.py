@@ -9,8 +9,10 @@ def get_schema_structure(connection_string: str, db_type: str):
     inspector = inspect(engine)
 
     schema_info = {"tables": []}
-    max_date = datetime.now().date()
-    min_date = max_date - timedelta(days=183) 
+    # max_date = datetime.now().date()
+    # min_date = max_date - timedelta(days=183) 
+    min_date="2003-01-06"
+    max_date="2005-06-11"
 
     try:
         with engine.connect() as connection:
