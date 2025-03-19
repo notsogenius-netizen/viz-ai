@@ -149,13 +149,12 @@ async def save_query_to_db(queries, db: Session, db_entry_id: int):
         saved_queries.append(query_entry)
 
     db.commit()
-    return {"status": "success", "message": "Queries saved successfully"}
+    return {"status": "success", "message": "Queries saved successfully", "queries": queries}
 # Add these functions to your app/services/pre_processing.py file
 
 async def process_nl_to_sql_query(data: ExternalDBCreateChatRequest, db: Session, current_user: CurrentUser):
     try:
         user_id = current_user.user_id
-
         user_project_roles = db.query(UserProjectRole).filter(
             UserProjectRole.user_id == user_id
         ).all()
@@ -172,7 +171,6 @@ async def process_nl_to_sql_query(data: ExternalDBCreateChatRequest, db: Session
                 
         if not db_entry:
             raise HTTPException(status_code=404, detail="No database connections found for this user.")
-        
         schema_structure = json.loads(db_entry.schema_structure)
         schema_structure_string = json.dumps(schema_structure, indent=2)
         

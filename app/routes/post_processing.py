@@ -25,7 +25,12 @@ def execute_query(
 
     # Execute query on the external database
     result = execute_external_query(external_db, generated_query.query_text)
-    return {"query": generated_query.query_text, "result": result}
+    return {
+        "result": result,
+        "id": generated_query.id,
+        "chartType": generated_query.chart_type,
+        "report": generated_query.explanation
+        }
 
 @router.get("/", response_model=list)
 def get_queries_for_external_db(external_db_id: int, db: Session = Depends(get_db)):

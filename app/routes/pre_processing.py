@@ -1,6 +1,7 @@
 import httpx
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+import json
+from fastapi import APIRouter, Depends, HTTPException, status,Body
 from sqlalchemy.orm import Session
 from app.schemas import ExternalDBCreateRequest, ExternalDBResponse, CurrentUser, UpdateDBRequest,ExternalDBCreateChatRequest
 from app.services.pre_processing import create_or_update_external_db, update_record, post_to_llm, save_query_to_db
@@ -23,7 +24,7 @@ async def update_record_and_call_llm(data: UpdateDBRequest, db: Session = Depend
     """
     API to update external db model and call llm service for processing.
     """
-    url = "http://192.168.94.213:8001/queries/"
+    url = "http://127.0.0.1:8001/queries/"
 
     saved_data = await update_record(data, db, current_user)
     llm_response = await post_to_llm(url, saved_data)
@@ -114,17 +115,15 @@ async def update_record_and_call_llm(data: UpdateDBRequest, db: Session = Depend
 
 logger = logging.getLogger(__name__)
 @router.post("/nl-to-sql", status_code=status.HTTP_200_OK)
-async def convert_nl_to_sql(data: ExternalDBCreateChatRequest, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
-        url = "http://192.168.94.213:8001/api/nlq/convert_nl_to_sql"
-        try:
-              
+async def convert_nl_to_sql(data: ExternalDBCreateChatRequest = Body(...), db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
+        url = "http://127.0.0.1:8001/api/nlq/convert_nl_to_sql"
+        print("Recivied data",data)
+        try:              
             logger.info("Received NL query: %s", data.nl_query)
-
             nlq_data, db_entry_id = await process_nl_to_sql_query(data, db, current_user)
             logger.info("Processed NL to SQL Query, Data: %s, DB Entry ID: %s", nlq_data, db_entry_id)
-
             sql_response = await post_to_nlq_llm(url, nlq_data)
-            logger.info("Received SQL response: %s", sql_response)
+            # logger.info("Received SQL response: %s", sql_response)
 
             save_result = await save_nl_sql_query(sql_response, db, db_entry_id)        
             logger.info("Save result: %s", save_result)
