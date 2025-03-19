@@ -38,7 +38,7 @@ class GeneratedQuery(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
     external_db_id = Column(UUID, ForeignKey('external_db.id'), nullable=False)
-    user_id = Column(UUID, ForeignKey("user.id"), nullable=False)
+    user_id = Column(UUID, ForeignKey("users.id"), nullable=False)
     is_sent = Column(Boolean, nullable=False, default=False)
     query_text = Column(String, nullable=False)
     explanation = Column(String, nullable=False)
@@ -48,5 +48,5 @@ class GeneratedQuery(Base):
     created_at= Column(DateTime, nullable= False, server_default=func.now())
 
     dashboards = relationship("Dashboard", secondary=dashboard_query_association, back_populates="queries")
-    user = relationship("User", back_populates="queries") 
+    user = relationship("UserModel", back_populates="queries") 
     external_db = relationship("ExternalDBModel", back_populates="queries")

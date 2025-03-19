@@ -24,13 +24,39 @@ async def update_record_and_call_llm(data: UpdateDBRequest, db: Session = Depend
     """
     API to update external db model and call llm service for processing.
     """
-    base_uri = settings.LLM_URI
+    base_uri = "http://192.168.1.7:8000"
     url = f"{base_uri}/queries/"
-
-    saved_data = await update_record(data, db, current_user)
-    llm_response = await post_to_llm(url, saved_data)
-    response = await save_query_to_db(queries=llm_response, db= db, db_entry_id= data.db_entry_id)
-    return response
+    
+    try:
+        saved_data = await update_record(data, db, current_user)
+        print(saved_data)
+        llm_response = await post_to_llm(url, saved_data)
+        response = await save_query_to_db(queries=llm_response, db= db, db_entry_id= data.db_entry_id, user_id= current_user.user_id)
+        return response
+    
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=e.response.status_code, 
+            detail=f"LLM service returned an error: {e.response.text}"
+        )
+    
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Request to LLM service failed: {str(e)}"
+        )
+    
+    except ValueError as e:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid data error: {str(e)}"
+        )
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"An unexpected error occurred: {str(e)}"
+        )
 
 logger = logging.getLogger(__name__)
 @router.post("/nl-to-sql", status_code=status.HTTP_200_OK)

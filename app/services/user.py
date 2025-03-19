@@ -58,25 +58,21 @@ async def login_user(data: LoginUserRequest, response: Response, db: Session):
         
         if not verify_password(data.password, user.password):
             raise HTTPException(status_code= status.HTTP_401_UNAUTHORIZED, detail="Password doesn't match")
-        
-        # role = get_user_role(user_id= user.id, db= db)
-        
+                
         access_token_data= {
-            "user_id": user.id,
+            "user_id": str(user.id),
             "role": None
         }
         access_token= create_token(data= access_token_data, expires_delta= timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
 
         refresh_token_data= {
-            "user_id": user.id,
+            "user_id": str(user.id),
         }
         refresh_token= create_token(data= refresh_token_data, expires_delta=timedelta(days= settings.REFRESH_TOKEN_EXPIRE_DAYS))
 
         user.refresh_token = get_password_hash(refresh_token)
         db.commit()
         db.refresh(user)
-
-        # response.headers["Authorization"] = f"Bearer {access_token}"
 
         return {
             "access_token": access_token,

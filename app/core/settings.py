@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     LLM_URI: str
     ENCRYPTION_KEY: str
 
-    model_config= SettingsConfigDict(env_file=".env", extra="ignore")
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
 
-settings = Settings()
+settings = Settings(_env_file=".env", _env_file_encoding="utf-8")

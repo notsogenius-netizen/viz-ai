@@ -8,7 +8,8 @@ from app.models.user import UserModel
 from app.models.user import ProjectModel
 from app.models.user import RoleModel 
 from app.models.user import UserProjectRole
-
+from app.models.pre_processing import ExternalDBModel, GeneratedQuery
+from app.models.post_processing import Dashboard
 
 engine = create_engine(
     url= settings.DB_URI,

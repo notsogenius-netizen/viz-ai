@@ -8,6 +8,7 @@ from app.utils.schema_structure import get_schema_structure
 from app.utils.crypt import encrypt_string, decrypt_string
 from app.schemas import ExternalDBCreateRequest, ExternalDBResponse, CurrentUser, UpdateDBRequest,NLQResponse, ExternalDBCreateChatRequest
 from datetime import datetime
+from uuid import UUID
 
 async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Session, current_user: CurrentUser):
     """
@@ -113,7 +114,7 @@ async def update_record(data: UpdateDBRequest, db: Session, current_user: Curren
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error updating record: {str(e)}")
 
-async def save_query_to_db(queries, db: Session, db_entry_id: int):
+async def save_query_to_db(queries, db: Session, db_entry_id: int, user_id: UUID):
     """
         Save the llm response to db.
     """
@@ -127,6 +128,7 @@ async def save_query_to_db(queries, db: Session, db_entry_id: int):
     for query_data in query_list:
         query_entry = GeneratedQuery(
             external_db_id=db_entry_id,
+            user_id=user_id,
             query_text=query_data['query'],
             explanation=query_data["explanation"],
             relevance=query_data["relevance"],
@@ -203,13 +205,23 @@ async def save_nl_sql_query(sql_response, db: Session, db_entry_id):
 
 async def post_to_llm(url: str, data: dict):
     """
-        Send a async post request to llm service.
+    Send an async POST request to the LLM service.
     """
+    print(url)
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            response = await client.post(url, json=data)
+            response.raise_for_status()  
+            return response.json()
 
-    async with httpx.AsyncClient(timeout= 120.0) as client:
-        response = await client.post(url, json=data)
-        response.raise_for_status()  
-        return response.json()
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=f"LLM service returned an error: {e.response.text}")
+
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"Request to LLM service failed: {str(e)}")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
     
 async def post_to_nlq_llm(url:str, data:dict):
     async with httpx.AsyncClient(timeout=30.0) as client:

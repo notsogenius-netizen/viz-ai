@@ -16,9 +16,9 @@ class UserModel(Base):
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
     tenant = relationship("TenantModel", back_populates="users", foreign_keys=[tenant_id])
-    user_project_roles = relationship("UserProjectRole", back_populates="user")
+    user_project_roles = relationship("UserProjectRole", back_populates="user", cascade="all, delete")
+    queries = relationship("GeneratedQuery", back_populates="user")
 
-    # ✅ Super User Reference
     super_tenant = relationship("TenantModel", back_populates="super_user", foreign_keys="[TenantModel.super_user_id]")
 
 
@@ -31,7 +31,7 @@ class ProjectModel(Base):
     created_at= Column(DateTime, nullable= False, server_default=func.now())
 
     tenant = relationship("TenantModel", back_populates="projects")
-    user_project_roles = relationship("UserProjectRole", back_populates="project")
+    user_project_roles = relationship("UserProjectRole", back_populates="project", cascade="all, delete-orphan")
 
 class RoleModel(Base):
     __tablename__ = "roles"
@@ -66,10 +66,10 @@ class UserProjectRole(Base):
     external_db_id = Column(UUID, ForeignKey("external_db.id"), nullable=True)
     created_at = Column(DateTime, nullable=False, server_default=func.now())
 
-    user = relationship("UserModel", back_populates="user_project_roles", cascade="all, delete-orphan")
-    project = relationship("ProjectModel", back_populates="user_project_roles", cascade="all, delete-orphan")
-    role = relationship("RoleModel", back_populates="user_project_roles", cascade="all, delete-orphan")
-    dashboards = relationship("Dashboard", back_populates="user_project_role", cascade="all, delete-orphan")
+    user = relationship("UserModel", back_populates="user_project_roles")
+    project = relationship("ProjectModel", back_populates="user_project_roles")
+    role = relationship("RoleModel", back_populates="user_project_roles")
+    dashboards = relationship("Dashboard", back_populates="user_project_role")
 
     external_db = relationship(
         "ExternalDBModel",
