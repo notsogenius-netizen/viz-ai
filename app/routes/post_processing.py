@@ -39,4 +39,4 @@ def get_queries_for_external_db(external_db_id: int, db: Session = Depends(get_d
     if not queries:
         raise HTTPException(status_code=404, detail="No queries found for the given external database")
 
-    return [{"id": q.id, "query": q.query_text, "explanation": q.explanation} for q in queries]
+    return [{"id": q.id, "query": q.query_text, "explanation": q.explanation,"chart_type":q.chart_type} for q in queries]

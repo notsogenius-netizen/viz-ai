@@ -1,6 +1,7 @@
 import httpx
 import asyncio
 import json
+from urllib.parse import quote_plus
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models.pre_processing import ExternalDBModel, GeneratedQuery
@@ -19,24 +20,46 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
         user_role = data.role
         print(data.role)
 
-        # Check if UserProjectRole exists
         new_user_project_role = UserProjectRole(
             user_id = user_id,
             project_id = data.project_id,
             role_id = data.role
         )
         
-        db.add(new_user_project_role)
-        db.commit()
-        db.refresh(new_user_project_role)
-
+        
         if not new_user_project_role:
             raise HTTPException(status_code=400, detail="User does not have a role in this project.")
-
-        schema_structure = get_schema_structure(data.connection_string,data.db_type)
+        
+        if(data.connection_string):
+            schema_structure = get_schema_structure(data.connection_string,data.db_type)
+            
+        else:
+            db.add(new_user_project_role)
+            db.commit()
+            db.refresh(new_user_project_role)
+            db_type = data.db_type.lower()
+            username = data.username
+            password = quote_plus(data.password)
+            host = data.host
+            db_name=data.db_name
+            
+            if db_type == "postgres":
+                reconstructed_conn_string = f"postgresql://{username}:{password}@{host}/{db_name}"
+                print(reconstructed_conn_string)
+                schema_structure = get_schema_structure(reconstructed_conn_string,db_type)
+            elif db_type == "mysql":
+                reconstructed_conn_string = f"mysql+pymysql://{username}:{password}@{host}/{db_name}"
+                schema_structure = get_schema_structure(reconstructed_conn_string,db_type)
+            else:
+                raise HTTPException(status_code=400, detail="Unsupported database type.")
+            
+            
         print(schema_structure)
-        # Check if entry exists (Update case)
+        
+        
         db_entry = db.query(ExternalDBModel).filter_by(user_project_role_id= new_user_project_role.id).first()
+        
+        
         if db_entry:
             db_entry.connection_string = data.connection_string
             db_entry.domain = data.domain if data.domain else None

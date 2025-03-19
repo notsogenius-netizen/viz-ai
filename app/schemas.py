@@ -24,10 +24,16 @@ class ExternalDBCreate(BaseModel):
 class ExternalDBCreateRequest(BaseModel):
     project_id: int
     role: str
-    connection_string: str
+    connection_string: Optional[str] = None
     domain: Optional[str] = None
-    db_type: str
+    db_type: Optional[str] = None
     api_key: Optional[str] = None
+    password:Optional[str] = None
+    host:Optional[str] = None
+    db_name:Optional[str] = None
+    username:Optional[str] = None
+    
+    
 
 class ExternalDBResponse(BaseModel):
     db_entry_id: int
