@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from app.models.pre_processing import ExternalDBModel, GeneratedQuery
-from app.services.post_processing import execute_external_query
+from app.services.post_processing import execute_external_query, get_paginated_queries
 from app.core.db import get_db
-from app.schemas import ExecuteQueryRequest
+from app.utils.auth_dependencies import get_current_user
+from app.schemas import ExecuteQueryRequest, CurrentUser
 
 router = APIRouter(prefix="/execute-query", tags=["External Database"])
 
@@ -32,11 +34,14 @@ def execute_query(
         "report": generated_query.explanation
         }
 
-@router.get("/", response_model=list)
-def get_queries_for_external_db(external_db_id: int, db: Session = Depends(get_db)):
-    queries = db.query(GeneratedQuery).filter(GeneratedQuery.external_db_id == external_db_id).all()
-
-    if not queries:
-        raise HTTPException(status_code=404, detail="No queries found for the given external database")
-
-    return [{"id": q.id, "query": q.query_text, "explanation": q.explanation} for q in queries]
+@router.get("/")
+def fetch_queries(external_db_id: int, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
+    user_id = current_user.user_id
+    try:
+        queries = get_paginated_queries(db, user_id, external_db_id)
+        return queries
+    except HTTPException as e:
+        raise e
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error fetching queries: {str(e)}")

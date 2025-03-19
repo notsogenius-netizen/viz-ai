@@ -1,4 +1,19 @@
 import bcrypt
+from cryptography.fernet import Fernet
+from app.core.settings import settings
+
+ENCRYPTION_KEY = settings.ENCRYPTION_KEY
+
+if not ENCRYPTION_KEY:
+    raise ValueError("ENCRYPTION_KEY is missing in environment variables!")
+
+cipher = Fernet(ENCRYPTION_KEY)
+
+def encrypt_string(string_value: str) -> str:
+    return cipher.encrypt(string_value.encode()).decode()
+
+def decrypt_string(encrypted_string_value: str) -> str:
+    return cipher.decrypt(encrypted_string_value.encode()).decode()
 
 def get_password_hash(password: str) -> str:
     salt = bcrypt.gensalt()

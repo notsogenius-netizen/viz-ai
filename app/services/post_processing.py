@@ -1,5 +1,8 @@
 from sqlalchemy import text
-from app.models.pre_processing import ExternalDBModel
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
+from fastapi import HTTPException
+from app.models.pre_processing import ExternalDBModel, GeneratedQuery
 from app.utils.schema_structure import get_external_db_session
 import json
 
@@ -47,3 +50,44 @@ def transform_data_dynamic(data):
     value_field = keys[1]   # Example: "amount", "total"
 
     return [{"label": str(item[label_field]), "value": item[value_field]} for item in data]
+
+
+def get_paginated_queries(db: Session, user_id: int, external_db_id: int, limit: int = 10):
+    try:
+        # Count how many queries have already been sent
+        sent_count = (
+            db.query(GeneratedQuery)
+            .filter(
+                GeneratedQuery.user_id == user_id,
+                GeneratedQuery.external_db_id == external_db_id,
+                GeneratedQuery.is_sent == True
+            )
+            .count()
+        )
+
+        if sent_count >= 30:
+            raise HTTPException(status_code=400, detail="No more reloads available.")
+
+        # Fetch unsent queries first
+        queries = (
+            db.query(GeneratedQuery)
+            .filter(
+                GeneratedQuery.user_id == user_id,
+                GeneratedQuery.external_db_id == external_db_id
+            )
+            .order_by(GeneratedQuery.is_sent, GeneratedQuery.created_at)
+            .limit(limit)
+            .all()
+        )
+
+        # Mark fetched queries as sent
+        for query in queries:
+            query.is_sent = True
+
+        db.commit()
+
+        return queries
+    
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code= 500, detail= f"Database error: {str(e)}")

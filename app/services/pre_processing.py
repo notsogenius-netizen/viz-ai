@@ -1,14 +1,12 @@
 import httpx
-import asyncio
 import json
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from app.models.pre_processing import ExternalDBModel, GeneratedQuery
 from app.models.user import UserProjectRole, RoleModel
 from app.utils.schema_structure import get_schema_structure
-from app.utils.auth_dependencies import get_current_user
+from app.utils.crypt import encrypt_string, decrypt_string
 from app.schemas import ExternalDBCreateRequest, ExternalDBResponse, CurrentUser, UpdateDBRequest,NLQResponse, ExternalDBCreateChatRequest
-from typing import List
 from datetime import datetime
 
 async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Session, current_user: CurrentUser):
@@ -18,8 +16,6 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
 
     try:
         user_id = current_user.user_id
-        user_role = data.role
-        print(data.role)
 
         # Check if UserProjectRole exists
         new_user_project_role = UserProjectRole(
@@ -36,11 +32,11 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
             raise HTTPException(status_code=400, detail="User does not have a role in this project.")
 
         schema_structure = get_schema_structure(data.connection_string,data.db_type)
-        print(schema_structure)
+
         # Check if entry exists (Update case)
         db_entry = db.query(ExternalDBModel).filter_by(user_project_role_id= new_user_project_role.id).first()
         if db_entry:
-            db_entry.connection_string = data.connection_string
+            db_entry.connection_string = encrypt_string(data.connection_string)
             db_entry.domain = data.domain if data.domain else None
             db_entry.database_provider = data.db_type
             db_entry.schema_structure = json.dumps(schema_structure)
@@ -48,11 +44,11 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
             db_entry.max_date = schema_structure["max_date"]
         else:
             db_entry = ExternalDBModel(
-                user_project_role_id=new_user_project_role.id,
-                connection_string=data.connection_string,
-                domain=data.domain if data.domain else None,
+                user_project_role_id= new_user_project_role.id,
+                connection_string= encrypt_string(data.connection_string),
+                domain= data.domain if data.domain else None,
                 database_provider = data.db_type,
-                schema_structure=json.dumps(schema_structure),
+                schema_structure= json.dumps(schema_structure),
                 min_date = schema_structure["min_date"],
                 max_date = schema_structure["max_date"]
             )
@@ -63,13 +59,6 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
         
 
         return ExternalDBResponse(
-            # role= user_role,
-            # domain= data.domain if data.domain else None,
-            # db_schema= schema_structure_string,
-            # api_key= data.api_key,
-            # db_type= data.db_type,
-            # min_date= schema_structure["min_date"],
-            # max_date= schema_structure["max_date"]
             db_entry_id = db_entry.id
         )
     
@@ -119,7 +108,6 @@ async def update_record(data: UpdateDBRequest, db: Session, current_user: Curren
             "max_date": max_date,
             "api_key": ""
         }
-        print(res)
         return res
     except Exception as e:
         db.rollback()
