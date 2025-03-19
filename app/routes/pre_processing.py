@@ -8,6 +8,7 @@ from app.services.pre_processing import create_or_update_external_db, update_rec
 from app.services.pre_processing import process_nl_to_sql_query,post_to_nlq_llm,save_nl_sql_query
 from app.utils.auth_dependencies import get_current_user
 from app.core.db import get_db
+from app.core.settings import settings
 
 router = APIRouter(prefix="/external-db", tags=["External Database"])
 
@@ -24,7 +25,8 @@ async def update_record_and_call_llm(data: UpdateDBRequest, db: Session = Depend
     """
     API to update external db model and call llm service for processing.
     """
-    url = "http://127.0.0.1:8001/queries/"
+    base_uri = settings.LLM_URI
+    url = f"{base_uri}/queries/"
 
     saved_data = await update_record(data, db, current_user)
     llm_response = await post_to_llm(url, saved_data)
@@ -116,7 +118,8 @@ async def update_record_and_call_llm(data: UpdateDBRequest, db: Session = Depend
 logger = logging.getLogger(__name__)
 @router.post("/nl-to-sql", status_code=status.HTTP_200_OK)
 async def convert_nl_to_sql(data: ExternalDBCreateChatRequest = Body(...), db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
-        url = "http://127.0.0.1:8001/api/nlq/convert_nl_to_sql"
+        base_uri = settings.LLM_URI
+        url = f"{base_uri}/api/nlq/convert_nl_to_sql"
         print("Recivied data",data)
         try:              
             logger.info("Received NL query: %s", data.nl_query)
