@@ -45,12 +45,6 @@ def get_schema_structure(connection_string: str, db_type: str):
 
 
 def get_external_db_session(external_db: ExternalDBModel):
-    """
-    Creates a dynamic session for an external database.
-
-    :param external_db: ExternalDBModel instance containing the DB connection string.
-    :return: SQLAlchemy session and engine
-    """
     engine = create_engine(external_db.connection_string)
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     return SessionLocal(), engine  # Return session and engine

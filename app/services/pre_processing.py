@@ -12,9 +12,7 @@ from typing import List
 from datetime import datetime
 
 async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Session, current_user: CurrentUser):
-    """
-    Connects to the external database, retrieves schema, and saves it in the internal database.
-    """
+
 
     try:
         user_id = current_user.user_id
@@ -63,13 +61,6 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
         
 
         return ExternalDBResponse(
-            # role= user_role,
-            # domain= data.domain if data.domain else None,
-            # db_schema= schema_structure_string,
-            # api_key= data.api_key,
-            # db_type= data.db_type,
-            # min_date= schema_structure["min_date"],
-            # max_date= schema_structure["max_date"]
             db_entry_id = db_entry.id
         )
     
