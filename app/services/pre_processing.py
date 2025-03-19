@@ -17,16 +17,18 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
 
     try:
         user_id = current_user.user_id
-        user_role = data.role
-        print(data.role)
+        # user_role = data.role
+        # print(data.role)
 
         new_user_project_role = UserProjectRole(
             user_id = user_id,
             project_id = data.project_id,
             role_id = data.role
         )
-        
-        
+        db.add(new_user_project_role)
+        db.commit()
+        db.refresh(new_user_project_role) 
+
         if not new_user_project_role:
             raise HTTPException(status_code=400, detail="User does not have a role in this project.")
         
@@ -56,9 +58,7 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
             
         print(schema_structure)
         
-        
         db_entry = db.query(ExternalDBModel).filter_by(user_project_role_id= new_user_project_role.id).first()
-        
         
         if db_entry:
             db_entry.connection_string = data.connection_string
