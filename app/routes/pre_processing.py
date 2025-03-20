@@ -1,6 +1,7 @@
 import httpx
 import logging
 from fastapi import APIRouter, Depends, HTTPException, status,Body
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.schemas import ExternalDBCreateRequest, ExternalDBResponse, CurrentUser, UpdateDBRequest,ExternalDBCreateChatRequest
 from app.services.pre_processing import create_or_update_external_db, update_record, post_to_llm, save_query_to_db
@@ -16,15 +17,26 @@ async def create_external_db(data: ExternalDBCreateRequest, db: Session = Depend
     """
     API to connect to an external database, retrieve schema, and store it in the internal database.
     """
-    return await create_or_update_external_db(data, db, current_user)
+    try:
+        return await create_or_update_external_db(data, db, current_user)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Database constraint violation.")
 
+    except HTTPException as http_exc:
+        db.rollback()
+        raise http_exc  # Re-raise expected HTTP exceptions
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error processing external DB: {str(e)}")
 
 @router.patch("/", status_code=status.HTTP_202_ACCEPTED)
 async def update_record_and_call_llm(data: UpdateDBRequest, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
     """
     API to update external db model and call llm service for processing.
     """
-    base_uri = "http://192.168.131.213:8000"
+    base_uri = "http://172.20.10.6:8000"
     url = f"{base_uri}/queries/"
     
     try:
@@ -61,9 +73,10 @@ async def update_record_and_call_llm(data: UpdateDBRequest, db: Session = Depend
 logger = logging.getLogger(__name__)
 @router.post("/nl-to-sql", status_code=status.HTTP_200_OK)
 async def convert_nl_to_sql(data: ExternalDBCreateChatRequest = Body(...), db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
-        base_uri = "http://192.168.131.213:8000"
+        base_uri = "http://172.20.10.6:8000"
         url = f"{base_uri}/api/nlq/convert_nl_to_sql"
         print("Recivied data",data)
+        user_id = current_user.user_id
         try:              
             logger.info("Received NL query: %s", data.nl_query)
             nlq_data, db_entry_id = await process_nl_to_sql_query(data, db, current_user)
@@ -71,7 +84,7 @@ async def convert_nl_to_sql(data: ExternalDBCreateChatRequest = Body(...), db: S
             sql_response = await post_to_nlq_llm(url, nlq_data)
             # logger.info("Received SQL response: %s", sql_response)
 
-            save_result = await save_nl_sql_query(sql_response, db, db_entry_id)        
+            save_result = await save_nl_sql_query(sql_response, db, db_entry_id, user_id)        
             logger.info("Save result: %s", save_result)
 
             return {

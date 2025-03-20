@@ -5,6 +5,12 @@ from app.routes.pre_processing import router as pre_processing_router
 from app.routes.post_processing import router as post_processing_router
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
+from app.core.logging_config import LoggingConfig
+import logging
+
+LoggingConfig.apply()
+
+logger = logging.getLogger("app")
 
 app = FastAPI()
 
@@ -41,6 +47,7 @@ app.add_middleware(
 
 @app.get('/')
 def health_check():
+    logger.info("Root endpoint accessed")
     return JSONResponse(content={"Status": "Running"})
 
 app.include_router(user_router)

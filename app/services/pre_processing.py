@@ -205,7 +205,7 @@ async def process_nl_to_sql_query(data: ExternalDBCreateChatRequest, db: Session
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing NL to SQL request: {str(e)}")
 
-async def save_nl_sql_query(sql_response, db: Session, db_entry_id):
+async def save_nl_sql_query(sql_response, db: Session, db_entry_id, user_id):
     try:
         external_db = db.query(ExternalDBModel).filter(ExternalDBModel.id == db_entry_id).first()
         if not external_db:
@@ -213,6 +213,7 @@ async def save_nl_sql_query(sql_response, db: Session, db_entry_id):
         
         if 'sql_query' in sql_response:
             new_query = GeneratedQuery(
+                user_id=user_id,
                 external_db_id=db_entry_id,
                 query_text=sql_response['sql_query'],
                 explanation=sql_response.get('explanation', 'Generated from natural language query'),

@@ -58,5 +58,6 @@ class ExecuteQueryRequest(BaseModel):
 
 
 class CreateDefaultDashboardRequest(BaseModel):
+    name: Optional[str] = None
     external_db_id: UUID
     query_ids: List[UUID]
