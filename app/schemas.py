@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional, Dict, Any
+from typing import Optional, Any, List
 from uuid import UUID
 
 class CreateUserRequest(BaseModel):
@@ -23,7 +23,7 @@ class ExternalDBCreate(BaseModel):
 
 
 class ExternalDBCreateRequest(BaseModel):
-    project_id: UUID
+    project_id: str
     role: str
     connection_string: str
     domain: Optional[str] = None
@@ -34,8 +34,8 @@ class ExternalDBResponse(BaseModel):
     db_entry_id: UUID
 
 class UpdateDBRequest(BaseModel):
-    project_id: UUID
-    db_entry_id: UUID
+    project_id: str
+    db_entry_id: str
     domain: str
     api_key: Optional[str] =None
 
@@ -55,3 +55,8 @@ class ExternalDBCreateChatRequest(BaseModel):
 class ExecuteQueryRequest(BaseModel):
     external_db_id: UUID
     query_id: UUID
+
+
+class CreateDefaultDashboardRequest(BaseModel):
+    external_db_id: UUID
+    query_ids: List[UUID]

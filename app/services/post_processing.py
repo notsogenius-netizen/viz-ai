@@ -52,9 +52,9 @@ def transform_data_dynamic(data):
     return [{"label": str(item[label_field]), "value": item[value_field]} for item in data]
 
 
-def get_paginated_queries(db: Session, user_id: int, external_db_id: int, limit: int = 10):
+def get_paginated_queries(db: Session, user_id: str, external_db_id: str):
     try:
-        # Count how many queries have already been sent
+        # Count already sent queries
         sent_count = (
             db.query(GeneratedQuery)
             .filter(
@@ -64,30 +64,71 @@ def get_paginated_queries(db: Session, user_id: int, external_db_id: int, limit:
             )
             .count()
         )
+        print(sent_count)
 
         if sent_count >= 30:
             raise HTTPException(status_code=400, detail="No more reloads available.")
 
-        # Fetch unsent queries first
-        queries = (
+                
+        if sent_count < 10:
+            new_limit = 10
+        elif sent_count < 20:
+            new_limit = 10
+        elif sent_count < 30:
+            new_limit = 10
+        else:
+            new_limit = 0
+
+        print(new_limit)
+        # Fetch previously sent queries
+        previously_sent_queries = (
             db.query(GeneratedQuery)
             .filter(
                 GeneratedQuery.user_id == user_id,
-                GeneratedQuery.external_db_id == external_db_id
+                GeneratedQuery.external_db_id == external_db_id,
+                GeneratedQuery.is_sent == True
             )
-            .order_by(GeneratedQuery.is_sent, GeneratedQuery.created_at)
-            .limit(limit)
+            .order_by(GeneratedQuery.created_at)
             .all()
         )
 
-        # Mark fetched queries as sent
-        for query in queries:
+        # Fetch new queries to be sent now
+        new_time_based_queries = (
+            db.query(GeneratedQuery)
+            .filter(
+                GeneratedQuery.user_id == user_id,
+                GeneratedQuery.external_db_id == external_db_id,
+                GeneratedQuery.is_time_based == True,
+                GeneratedQuery.is_sent == False
+            )
+            .order_by(GeneratedQuery.created_at)
+            .limit(new_limit // 2)  # Fetch half of the new limit
+            .all()
+        )
+
+        new_non_time_based_queries = (
+            db.query(GeneratedQuery)
+            .filter(
+                GeneratedQuery.user_id == user_id,
+                GeneratedQuery.external_db_id == external_db_id,
+                GeneratedQuery.is_time_based == False,
+                GeneratedQuery.is_sent == False
+            )
+            .order_by(GeneratedQuery.created_at)
+            .limit(new_limit - len(new_time_based_queries))  # Fill the remaining slots
+            .all()
+        )
+
+        # Combine previously sent + new queries
+        queries = previously_sent_queries + new_time_based_queries + new_non_time_based_queries
+
+        # Mark only new queries as sent
+        for query in new_time_based_queries + new_non_time_based_queries:
             query.is_sent = True
 
         db.commit()
-
         return queries
-    
+
     except SQLAlchemyError as e:
         db.rollback()
-        raise HTTPException(status_code= 500, detail= f"Database error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
