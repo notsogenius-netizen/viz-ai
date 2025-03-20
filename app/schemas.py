@@ -84,3 +84,10 @@ class TimeBasedUpdateRequest(BaseModel):
     dashboard_id: int
     min_date: str
     max_date: str
+    
+class DashboardSchema(BaseModel):
+    dashboard_id: int
+    dashboard_name: str
+
+    class Config:
+        orm_mode = True

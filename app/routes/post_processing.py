@@ -1,11 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.models.pre_processing import ExternalDBModel, GeneratedQuery
+from app.models.post_processing import Dashboard
 from app.services.post_processing import process_time_based_queries,execute_external_query
 from app.core.db import get_db
-from app.schemas import ExecuteQueryRequest,TimeBasedUpdateRequest,TimeBasedQueriesUpdateResponse
+from app.schemas import ExecuteQueryRequest,TimeBasedUpdateRequest,TimeBasedQueriesUpdateResponse,DashboardSchema
 import logging
 from app.core.settings import settings
+
 
 
 router = APIRouter(prefix="/execute-query", tags=["External Database"])
@@ -60,3 +62,17 @@ async def update_dashboard_queries(request_data: TimeBasedUpdateRequest, db: Ses
         raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating queries: {str(e)}")
+    
+
+
+@router.get("/get-dashboards", response_model=list[DashboardSchema])
+def fetch_user_dashboards(user_id: str, external_db_id: int, db: Session = Depends(get_db)):
+    dashboards = db.query(Dashboard).filter(
+        Dashboard.user_project_role_id == user_id,
+        Dashboard.external_db_id == external_db_id  
+    ).all()
+
+    if not dashboards:
+        raise HTTPException(status_code=404, detail="No dashboards found for this user and external database.")
+
+    return [{"dashboard_id": d.id, "dashboard_name": d.name} for d in dashboards]
