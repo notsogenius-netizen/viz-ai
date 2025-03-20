@@ -1,10 +1,12 @@
+import logging
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi import HTTPException
 from app.models.pre_processing import ExternalDBModel, GeneratedQuery
 from app.utils.schema_structure import get_external_db_session
-import json
+
+logger = logging.getLogger("app")
 
 def execute_external_query(external_db: ExternalDBModel, query: str):
     """
@@ -54,6 +56,7 @@ def transform_data_dynamic(data):
 
 def get_paginated_queries(db: Session, user_id: str, external_db_id: str):
     try:
+        logger.info(f"Fetching paginated queries for user_id={user_id}, external_db_id={external_db_id}")
         # Count already sent queries
         sent_count = (
             db.query(GeneratedQuery)
@@ -64,7 +67,7 @@ def get_paginated_queries(db: Session, user_id: str, external_db_id: str):
             )
             .count()
         )
-        print(sent_count)
+        logger.debug(f"Sent query count: {sent_count}")
 
         if sent_count >= 30:
             raise HTTPException(status_code=400, detail="No more reloads available.")
@@ -79,7 +82,8 @@ def get_paginated_queries(db: Session, user_id: str, external_db_id: str):
         else:
             new_limit = 0
 
-        print(new_limit)
+        logger.debug(f"New queries limit: {new_limit}")
+
         # Fetch previously sent queries
         previously_sent_queries = (
             db.query(GeneratedQuery)
@@ -119,6 +123,9 @@ def get_paginated_queries(db: Session, user_id: str, external_db_id: str):
             .all()
         )
 
+        logger.debug(f"Fetched {len(new_time_based_queries)} time-based queries")
+        logger.debug(f"Fetched {len(new_non_time_based_queries)} non-time-based queries")
+
         # Combine previously sent + new queries
         queries = previously_sent_queries + new_time_based_queries + new_non_time_based_queries
 
@@ -127,8 +134,20 @@ def get_paginated_queries(db: Session, user_id: str, external_db_id: str):
             query.is_sent = True
 
         db.commit()
+        logger.info(f"Returning {len(queries)} queries for user_id={user_id}")
+
         return queries
+
+    except HTTPException as e:
+        logger.warning(f"HTTPException: {e.detail}")
+        raise
 
     except SQLAlchemyError as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        logger.error(f"Database error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Database error occurred.")
+
+    except Exception as e:
+        db.rollback()
+        logger.critical(f"Unexpected error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
