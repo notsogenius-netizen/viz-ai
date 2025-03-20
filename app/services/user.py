@@ -1,6 +1,8 @@
 from app.models.user import UserModel, TenantModel
 from fastapi.exceptions import HTTPException
 from fastapi import status, Response, Request
+from sqlalchemy.exc import IntegrityError
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 from app.core.settings import settings
 from app.utils.crypt import get_password_hash, verify_password
@@ -47,8 +49,19 @@ async def create_user(data: CreateUserRequest, response: Response, db: Session):
             "access_token": access_token,
             "refresh_token": refresh_token
         }
+    except HTTPException as http_exc:
+        raise http_exc
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists or violates constraints")
+
+    except ValidationError as val_err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
+
     except Exception as e:
-        raise HTTPException(status_code= 500, detail= e)
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
 
 async def login_user(data: LoginUserRequest, response: Response, db: Session):
     try:
@@ -58,17 +71,15 @@ async def login_user(data: LoginUserRequest, response: Response, db: Session):
         
         if not verify_password(data.password, user.password):
             raise HTTPException(status_code= status.HTTP_401_UNAUTHORIZED, detail="Password doesn't match")
-        
-        # role = get_user_role(user_id= user.id, db= db)
-        
+                
         access_token_data= {
-            "user_id": user.id,
+            "user_id": str(user.id),
             "role": None
         }
         access_token= create_token(data= access_token_data, expires_delta= timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
 
         refresh_token_data= {
-            "user_id": user.id,
+            "user_id": str(user.id),
         }
         refresh_token= create_token(data= refresh_token_data, expires_delta=timedelta(days= settings.REFRESH_TOKEN_EXPIRE_DAYS))
 
@@ -76,30 +87,58 @@ async def login_user(data: LoginUserRequest, response: Response, db: Session):
         db.commit()
         db.refresh(user)
 
-        # response.headers["Authorization"] = f"Bearer {access_token}"
-
         return {
             "access_token": access_token,
             "refresh_token": refresh_token
         }
-    except Exception as e:
-        raise HTTPException(status_code= 500, detail= e)
+    except HTTPException as http_exc:
+        raise http_exc  # Re-raise known HTTP exceptions
+
+    except ValidationError as val_err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
+
+    except IntegrityError:
+        db.rollback()  # Rollback in case of a database constraint issue
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
+
+    except Exception:
+        db.rollback()  # Ensure rollback on unexpected errors
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
 
 async def logout_user(response, db, user_id):
     try:    
         user = db.query(UserModel).filter(UserModel.id == user_id).first()
-        if user:
-            user.refresh_token = None
-            db.commit()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+        
+        user.refresh_token = None
+        db.commit()
+        db.refresh(user)
 
-        response.delete_cookie("access_token")
-        response.delete_cookie("refresh_token")
-    except Exception as e:
-        raise HTTPException(status_code= 500, detail= e)
+        return {"message": "Logout successful"}
+
+    except HTTPException as http_exc:
+        raise http_exc  # Re-raise known HTTP exceptions
+
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
 
 async def refresh_user_token(request: Request, response: Response, db: Session):
     try:
-        refresh_token = request.cookies.get("refresh_token")
+         # Get Authorization header
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, 
+                detail="Missing or invalid Authorization header"
+            )
+        refresh_token = auth_header.split(" ")[1]
+
         if not refresh_token:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing refresh token")
 
@@ -108,23 +147,27 @@ async def refresh_user_token(request: Request, response: Response, db: Session):
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
         access_token_data= {
-            "user_id": user.id,
+            "user_id": str(user.id),
             "role": None
         }
 
         new_access_token = create_token(data= access_token_data, expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
 
-        response.set_cookie(
-            key="access_token",
-            value=new_access_token,
-            httponly=True,  
-            secure=True,    
-            samesite="Lax"  
-        )
+        return {"access_message": new_access_token}
+    
+    except HTTPException as http_exc:
+        raise http_exc  # Re-raise known HTTP exceptions
 
-        return {"message": "Access token refreshed"}
-    except Exception as e:
-        raise HTTPException(status_code= 500, detail= e)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail="An unexpected error occurred"
+        )
 
 async def create_tenants_service(data, db):
     tenant = db.query(TenantModel).filter(TenantModel.name == data.name).first()

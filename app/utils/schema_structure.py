@@ -2,15 +2,17 @@ from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.orm import sessionmaker
 from app.models.pre_processing import ExternalDBModel
 from datetime import datetime, timedelta
-import re
+from app.utils.crypt import decrypt_string
 
 def get_schema_structure(connection_string: str, db_type: str):
     engine = create_engine(connection_string)
     inspector = inspect(engine)
 
     schema_info = {"tables": []}
-    max_date = datetime.now().date()
-    min_date = max_date - timedelta(days=183) 
+    # max_date = datetime.now().date()
+    # min_date = max_date - timedelta(days=183) 
+    min_date= datetime.fromisoformat("2003-01-06")
+    max_date= datetime.fromisoformat("2005-06-11")
 
     try:
         with engine.connect() as connection:
@@ -45,6 +47,13 @@ def get_schema_structure(connection_string: str, db_type: str):
 
 
 def get_external_db_session(external_db: ExternalDBModel):
-    engine = create_engine(external_db.connection_string)
+    """
+    Creates a dynamic session for an external database.
+
+    :param external_db: ExternalDBModel instance containing the DB connection string.
+    :return: SQLAlchemy session and engine
+    """
+    decrypt_conn_string = decrypt_string(external_db.connection_string)
+    engine = create_engine(decrypt_conn_string)
     SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     return SessionLocal(), engine  # Return session and engine

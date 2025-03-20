@@ -11,8 +11,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int
     REFRESH_TOKEN_EXPIRE_DAYS: int
     LLM_URI: str
+    ENCRYPTION_KEY: str
 
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
 
-    model_config= SettingsConfigDict(env_file=".env", extra="ignore")
-
-settings = Settings()
+settings = Settings(_env_file=".env", _env_file_encoding="utf-8")

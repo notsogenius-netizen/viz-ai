@@ -7,3 +7,5 @@ htmlcov
 .cache
 .venv
 .env
+.txt
+app.log

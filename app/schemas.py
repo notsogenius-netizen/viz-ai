@@ -1,28 +1,29 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional, Dict, Any, List
+from typing import Optional, Any, List
+from uuid import UUID
 
 class CreateUserRequest(BaseModel):
     name: str
     email: EmailStr
     password: str
-    tenant_id: Optional[int] = None
+    tenant_id: Optional[UUID] = None
 
 class CreateTenantRequest(BaseModel):
     name: str
-    super_user_id: Optional[int] = None
+    super_user_id: Optional[UUID] = None
 
 class LoginUserRequest(BaseModel):
     email: str
     password: str
 
 class ExternalDBCreate(BaseModel):
-    user_project_role_id: int
+    user_project_role_id: UUID
     connection_string: str
     domain: str
 
 
 class ExternalDBCreateRequest(BaseModel):
-    project_id: int
+    project_id: str
     role: str
     connection_string: Optional[str] = None
     domain: Optional[str] = None
@@ -36,16 +37,16 @@ class ExternalDBCreateRequest(BaseModel):
     
 
 class ExternalDBResponse(BaseModel):
-    db_entry_id: int
+    db_entry_id: UUID
 
 class UpdateDBRequest(BaseModel):
-    project_id: int
-    db_entry_id: int
+    project_id: str
+    db_entry_id: str
     domain: str
     api_key: Optional[str] =None
 
 class CurrentUser(BaseModel):
-    user_id: int
+    user_id: UUID
     role: Optional[str] = None
     
 class NLQResponse(BaseModel):
@@ -70,6 +71,7 @@ class TimeBasedQueriesUpdateRequest(BaseModel):
     min_date: str
     max_date: str
     db_type: str  
+      
 class QueryDateUpdateResponse(BaseModel):
     query_id: str 
     original_query: str 
@@ -91,3 +93,8 @@ class DashboardSchema(BaseModel):
 
     class Config:
         orm_mode = True
+
+class CreateDefaultDashboardRequest(BaseModel):
+    name: Optional[str] = None
+    external_db_id: UUID
+    query_ids: List[UUID]
