@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 class CreateUserRequest(BaseModel):
     name: str
@@ -60,3 +60,27 @@ class ExternalDBCreateChatRequest(BaseModel):
 class ExecuteQueryRequest(BaseModel):
     external_db_id: int
     query_id: int
+    
+class QueryWithId(BaseModel):
+    query_id: str
+    query: str
+
+class TimeBasedQueriesUpdateRequest(BaseModel):
+    queries: List[QueryWithId]
+    min_date: str
+    max_date: str
+    db_type: str  
+class QueryDateUpdateResponse(BaseModel):
+    query_id: str 
+    original_query: str 
+    updated_query: str 
+    success: bool 
+    error: Optional[str] = None
+
+class TimeBasedQueriesUpdateResponse(BaseModel):
+    updated_queries: List[QueryDateUpdateResponse]
+    
+class TimeBasedUpdateRequest(BaseModel):
+    dashboard_id: int
+    min_date: str
+    max_date: str
