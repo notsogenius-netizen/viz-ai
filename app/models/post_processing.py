@@ -8,7 +8,7 @@ dashboard_query_association = Table(
     "dashboard_query_association",
     Base.metadata,
     Column("dashboard_id", UUID, ForeignKey("dashboard.id"), primary_key=True),
-    Column("query_id", UUID, ForeignKey("generated_queries.id"), primary_key=True)
+    Column("query_id", UUID, ForeignKey("generated_queries.id"), primary_key=True, nullable= True)
 )
 
 class Dashboard(Base):

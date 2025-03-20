@@ -8,7 +8,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi import HTTPException
 from app.utils.schema_structure import get_external_db_session
+from app.utils.auth_dependencies import get_user_project_role
 from app.schemas import TimeBasedQueriesUpdateRequest, TimeBasedQueriesUpdateResponse, QueryWithId
+from uuid import UUID
 
 
 def execute_external_query(external_db: ExternalDBModel, query: str):
@@ -214,3 +216,57 @@ def get_paginated_queries(db: Session, user_id: str, external_db_id: str):
     except SQLAlchemyError as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+    
+def create_or_get_dashboard(db: Session, name: str, external_db_id: UUID, user_id: UUID, role_id: UUID):
+    """
+    Retrieve an existing dashboard or create a new one with the given name.
+    """
+    try:
+        user_project_role = get_user_project_role(db, user_id, role_id)
+
+        dashboard = (
+            db.query(Dashboard)
+            .filter(Dashboard.user_project_role_id == user_project_role.id, Dashboard.name == name)
+            .first()
+        )
+
+        if not dashboard:
+            dashboard = Dashboard(
+                name=name,
+                external_db_id=external_db_id,
+                user_project_role_id=user_project_role.id
+            )
+            db.add(dashboard)
+            db.commit()
+            db.refresh(dashboard)
+
+        return dashboard
+    except SQLAlchemyError as e:  # Catch database-related errors
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+    except Exception as e:  # Catch any unexpected errors
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+def add_queries_to_dashboard(db: Session, dashboard: Dashboard, query_ids: list[UUID]):
+    """
+    Add selected queries to the given dashboard.
+    """
+    try:
+        queries = db.query(GeneratedQuery).filter(GeneratedQuery.id.in_(query_ids)).all()
+
+        if not queries:
+            raise HTTPException(status_code=400, detail="No valid queries found.")
+
+        for query in queries:
+            if query not in dashboard.queries:  # Avoid duplicates
+                dashboard.queries.append(query)  # <- This line is adding queries to the dashboard
+        db.commit()
+
+        return queries
+    except SQLAlchemyError as e:  # Handle database-related errors
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+    except Exception as e:  # Catch any unexpected errors
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")

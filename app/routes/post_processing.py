@@ -4,10 +4,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from app.models.pre_processing import ExternalDBModel, GeneratedQuery
 from app.models.post_processing import Dashboard
-from app.services.post_processing import process_time_based_queries,execute_external_query, get_paginated_queries
+from app.services.post_processing import process_time_based_queries,execute_external_query, get_paginated_queries, create_or_get_dashboard, add_queries_to_dashboard
 from app.core.db import get_db
 from app.utils.auth_dependencies import get_current_user
-from app.schemas import ExecuteQueryRequest,TimeBasedUpdateRequest,TimeBasedQueriesUpdateResponse,DashboardSchema, CurrentUser, CreateDefaultDashboardRequest
+from app.schemas import ExecuteQueryRequest,TimeBasedUpdateRequest,TimeBasedQueriesUpdateResponse,DashboardSchema, CurrentUser, CreateDefaultDashboardRequest, AddQueriesToDashboardRequest
 import logging
 from app.core.settings import settings
 
@@ -128,4 +128,47 @@ def fetch_user_dashboards(user_id: str, external_db_id: int, db: Session = Depen
 
 @router.post("/create-default-dashboard")
 def create_default_dashboard(data: CreateDefaultDashboardRequest, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
-    pass
+    """
+    Create or update a dashboard for the user with selected queries.
+    If no name is provided, the default name is "Main Dashboard".
+    """
+    try:
+        user_id = current_user.user_id
+        role_id = data.role_id
+        dashboard_name = data.name if data.name else "Main Dashboard"
+
+        dashboard = create_or_get_dashboard(db, dashboard_name, data.db_entry_id, user_id, role_id)
+
+        queries_added = add_queries_to_dashboard(db, dashboard, data.query_ids)
+
+        return {
+            "message": "Dashboard created successfully",
+            "dashboard_id": str(dashboard.id),
+            "queries_added": len(queries_added)
+        }
+    except HTTPException as e:
+        raise e
+
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+    
+@router.post("/add-queries-to-dashboard")
+def add_queries_to_dashboard_endpoint(data: AddQueriesToDashboardRequest, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
+    """
+    Add queries to an existing dashboard.
+    """
+    dashboard = db.query(Dashboard).filter(Dashboard.id == data.dashboard_id).first()
+    if not dashboard:
+        raise HTTPException(status_code=404, detail="Dashboard not found.")
+    
+    queries_added = add_queries_to_dashboard(db, dashboard, data.query_ids)
+
+    return {
+        "message": "Queries added successfully",
+        "dashboard_id": str(dashboard.id),
+        "queries_added": len(queries_added)
+    }
