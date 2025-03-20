@@ -25,10 +25,16 @@ class ExternalDBCreate(BaseModel):
 class ExternalDBCreateRequest(BaseModel):
     project_id: str
     role: str
-    connection_string: str
+    connection_string: Optional[str] = None
     domain: Optional[str] = None
-    db_type: str
+    db_type: Optional[str] = None
     api_key: Optional[str] = None
+    password:Optional[str] = None
+    host:Optional[str] = None
+    db_name:Optional[str] = None
+    username:Optional[str] = None
+    
+    
 
 class ExternalDBResponse(BaseModel):
     db_entry_id: UUID
@@ -53,9 +59,40 @@ class ExternalDBCreateChatRequest(BaseModel):
     nl_query:str
     
 class ExecuteQueryRequest(BaseModel):
-    external_db_id: UUID
-    query_id: UUID
+    external_db_id: int
+    query_id: int
+    
+class QueryWithId(BaseModel):
+    query_id: str
+    query: str
 
+class TimeBasedQueriesUpdateRequest(BaseModel):
+    queries: List[QueryWithId]
+    min_date: str
+    max_date: str
+    db_type: str  
+      
+class QueryDateUpdateResponse(BaseModel):
+    query_id: str 
+    original_query: str 
+    updated_query: str 
+    success: bool 
+    error: Optional[str] = None
+
+class TimeBasedQueriesUpdateResponse(BaseModel):
+    updated_queries: List[QueryDateUpdateResponse]
+    
+class TimeBasedUpdateRequest(BaseModel):
+    dashboard_id: int
+    min_date: str
+    max_date: str
+    
+class DashboardSchema(BaseModel):
+    dashboard_id: int
+    dashboard_name: str
+
+    class Config:
+        orm_mode = True
 
 class CreateDefaultDashboardRequest(BaseModel):
     name: Optional[str] = None
