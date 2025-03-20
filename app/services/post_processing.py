@@ -3,7 +3,7 @@ import logging
 import httpx
 from sqlalchemy import text
 from app.models.pre_processing import ExternalDBModel,GeneratedQuery
-from app.models.post_processing import Dashboard
+from app.models.post_processing import Dashboard, DashboardQueryAssociation
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from fastapi import HTTPException
@@ -257,12 +257,22 @@ def add_queries_to_dashboard(db: Session, dashboard: Dashboard, query_ids: list[
 
         if not queries:
             raise HTTPException(status_code=400, detail="No valid queries found.")
+        
+        existing_associations = {
+            (assoc.dashboard_id, assoc.query_id)
+            for assoc in db.query(DashboardQueryAssociation)
+            .filter(DashboardQueryAssociation.dashboard_id == dashboard.id)
+            .all()
+        }
 
+        new_associations = []
         for query in queries:
-            if query not in dashboard.queries:  # Avoid duplicates
-                dashboard.queries.append(query)  # <- This line is adding queries to the dashboard
-        db.commit()
+            if (dashboard.id, query.id) not in existing_associations:
+                new_associations.append(DashboardQueryAssociation(dashboard_id=dashboard.id, query_id=query.id))
 
+        if new_associations:
+            db.add_all(new_associations)
+            db.commit()
         return queries
     except SQLAlchemyError as e:  # Handle database-related errors
         db.rollback()

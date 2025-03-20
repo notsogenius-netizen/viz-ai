@@ -97,7 +97,6 @@ class DashboardSchema(BaseModel):
 class CreateDefaultDashboardRequest(BaseModel):
     name: Optional[str] = None
     db_entry_id: UUID
-    query_ids: List[UUID]
     role_id: UUID
 
 class AddQueriesToDashboardRequest(BaseModel):

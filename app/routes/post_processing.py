@@ -126,8 +126,8 @@ def fetch_user_dashboards(user_id: str, external_db_id: int, db: Session = Depen
 
     return [{"dashboard_id": d.id, "dashboard_name": d.name} for d in dashboards]
 
-@router.post("/create-default-dashboard")
-def create_default_dashboard(data: CreateDefaultDashboardRequest, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
+@router.post("/create-dashboard")
+def create_dashboard(data: CreateDefaultDashboardRequest, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
     """
     Create or update a dashboard for the user with selected queries.
     If no name is provided, the default name is "Main Dashboard".
@@ -135,16 +135,13 @@ def create_default_dashboard(data: CreateDefaultDashboardRequest, db: Session = 
     try:
         user_id = current_user.user_id
         role_id = data.role_id
-        dashboard_name = data.name if data.name else "Main Dashboard"
+        dashboard_name = data.name if data.name else "Untitled Dashboard"
 
         dashboard = create_or_get_dashboard(db, dashboard_name, data.db_entry_id, user_id, role_id)
-
-        queries_added = add_queries_to_dashboard(db, dashboard, data.query_ids)
 
         return {
             "message": "Dashboard created successfully",
             "dashboard_id": str(dashboard.id),
-            "queries_added": len(queries_added)
         }
     except HTTPException as e:
         raise e
