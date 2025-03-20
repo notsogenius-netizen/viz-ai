@@ -1,3 +1,4 @@
+
 from typing import Dict, Any, List, Tuple, Optional
 import logging
 import httpx
@@ -12,6 +13,7 @@ from app.utils.auth_dependencies import get_user_project_role
 from app.schemas import TimeBasedQueriesUpdateRequest, TimeBasedQueriesUpdateResponse, QueryWithId
 from uuid import UUID
 
+logger = logging.getLogger("app")
 
 def execute_external_query(external_db: ExternalDBModel, query: str):
     """
@@ -138,6 +140,7 @@ async def update_queries_in_db(db: Session, updated_queries):
 
 def get_paginated_queries(db: Session, user_id: str, external_db_id: str):
     try:
+        logger.info(f"Fetching paginated queries for user_id={user_id}, external_db_id={external_db_id}")
         # Count already sent queries
         sent_count = (
             db.query(GeneratedQuery)
@@ -148,7 +151,7 @@ def get_paginated_queries(db: Session, user_id: str, external_db_id: str):
             )
             .count()
         )
-        print(sent_count)
+        logger.debug(f"Sent query count: {sent_count}")
 
         if sent_count >= 30:
             raise HTTPException(status_code=400, detail="No more reloads available.")
@@ -163,7 +166,8 @@ def get_paginated_queries(db: Session, user_id: str, external_db_id: str):
         else:
             new_limit = 0
 
-        print(new_limit)
+        logger.debug(f"New queries limit: {new_limit}")
+
         # Fetch previously sent queries
         previously_sent_queries = (
             db.query(GeneratedQuery)
@@ -203,6 +207,9 @@ def get_paginated_queries(db: Session, user_id: str, external_db_id: str):
             .all()
         )
 
+        logger.debug(f"Fetched {len(new_time_based_queries)} time-based queries")
+        logger.debug(f"Fetched {len(new_non_time_based_queries)} non-time-based queries")
+
         # Combine previously sent + new queries
         queries = previously_sent_queries + new_time_based_queries + new_non_time_based_queries
 
@@ -211,11 +218,23 @@ def get_paginated_queries(db: Session, user_id: str, external_db_id: str):
             query.is_sent = True
 
         db.commit()
+        logger.info(f"Returning {len(queries)} queries for user_id={user_id}")
+
         return queries
+
+    except HTTPException as e:
+        logger.warning(f"HTTPException: {e.detail}")
+        raise
 
     except SQLAlchemyError as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+        logger.error(f"Database error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Database error occurred.")
+
+    except Exception as e:
+        db.rollback()
+        logger.critical(f"Unexpected error: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred.")
     
 def create_or_get_dashboard(db: Session, name: str, external_db_id: UUID, user_id: UUID, role_id: UUID):
     """

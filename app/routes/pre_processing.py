@@ -37,6 +37,7 @@ async def update_record_and_call_llm(data: UpdateDBRequest, db: Session = Depend
     API to update external db model and call llm service for processing.
     """
     base_uri = "http://0.0.0.0:8080"
+
     url = f"{base_uri}/queries/"
     
     try:
