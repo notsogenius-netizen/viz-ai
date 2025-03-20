@@ -3,7 +3,6 @@ from sqlalchemy import Column, String, ForeignKey, DateTime, func, Text, Double,
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from app.core.base import Base
-from app.models.post_processing import dashboard_query_association
 
 class ExternalDBModel(Base):
     __tablename__ = 'external_db'
@@ -47,6 +46,8 @@ class GeneratedQuery(Base):
     chart_type = Column(String, nullable= False)
     created_at= Column(DateTime, nullable= False, server_default=func.now())
 
-    dashboards = relationship("Dashboard", secondary=dashboard_query_association, back_populates="queries")
+    dashboards = relationship("Dashboard", secondary="dashboard_query_association", back_populates="queries", overlaps="dashboard_query_links") 
     user = relationship("UserModel", back_populates="queries") 
     external_db = relationship("ExternalDBModel", back_populates="queries")
+
+    dashboard_query_links = relationship("DashboardQueryAssociation", back_populates="query", cascade="all, delete", overlaps="dashboards")

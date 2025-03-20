@@ -1,5 +1,6 @@
 import httpx
 import json
+from urllib.parse import quote_plus
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -12,31 +13,49 @@ from datetime import datetime
 from uuid import UUID
 
 async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Session, current_user: CurrentUser):
-    """
-    Connects to the external database, retrieves schema, and saves it in the internal database.
-    """
-
     try:
         user_id = current_user.user_id
 
-        # Check if UserProjectRole exists
         new_user_project_role = UserProjectRole(
             user_id = user_id,
             project_id = data.project_id,
             role_id = data.role
         )
-        
         db.add(new_user_project_role)
         db.commit()
-        db.refresh(new_user_project_role)
+        db.refresh(new_user_project_role) 
 
         if not new_user_project_role:
             raise HTTPException(status_code=400, detail="User does not have a role in this project.")
-
-        schema_structure = get_schema_structure(data.connection_string,data.db_type)
-
-        # Check if entry exists (Update case)
+        
+        if(data.connection_string):
+            schema_structure = get_schema_structure(data.connection_string,data.db_type)
+            
+        else:
+            db.add(new_user_project_role)
+            db.commit()
+            db.refresh(new_user_project_role)
+            db_type = data.db_type.lower()
+            username = data.username
+            password = quote_plus(data.password)
+            host = data.host
+            db_name=data.db_name
+            
+            if db_type == "postgres":
+                reconstructed_conn_string = f"postgresql://{username}:{password}@{host}/{db_name}"
+                print(reconstructed_conn_string)
+                schema_structure = get_schema_structure(reconstructed_conn_string,db_type)
+            elif db_type == "mysql":
+                reconstructed_conn_string = f"mysql+pymysql://{username}:{password}@{host}/{db_name}"
+                schema_structure = get_schema_structure(reconstructed_conn_string,db_type)
+            else:
+                raise HTTPException(status_code=400, detail="Unsupported database type.")
+            
+            
+        print(schema_structure)
+        
         db_entry = db.query(ExternalDBModel).filter_by(user_project_role_id= new_user_project_role.id).first()
+        
         if db_entry:
             db_entry.connection_string = encrypt_string(data.connection_string)
             db_entry.domain = data.domain if data.domain else None
@@ -236,11 +255,10 @@ async def save_nl_sql_query(sql_response, db: Session, db_entry_id, user_id):
         raise HTTPException(status_code=500, detail=f"Error processing NL to SQL request: {str(e)}")
 
 
-async def post_to_llm(url: str, data: dict):
+async def post_to_llm(url: str, data: dict):    
     """
     Send an async POST request to the LLM service.
     """
-    print(url)
     try:
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(url, json=data)

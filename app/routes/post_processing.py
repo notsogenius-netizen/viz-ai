@@ -3,10 +3,16 @@ from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from app.models.pre_processing import ExternalDBModel, GeneratedQuery
-from app.services.post_processing import execute_external_query, get_paginated_queries
+from app.models.post_processing import Dashboard
+from app.services.post_processing import process_time_based_queries,execute_external_query, get_paginated_queries, create_or_get_dashboard, add_queries_to_dashboard
 from app.core.db import get_db
 from app.utils.auth_dependencies import get_current_user
-from app.schemas import ExecuteQueryRequest, CurrentUser, CreateDefaultDashboardRequest
+from app.schemas import ExecuteQueryRequest,TimeBasedUpdateRequest,TimeBasedQueriesUpdateResponse,DashboardSchema, CurrentUser, CreateDefaultDashboardRequest, AddQueriesToDashboardRequest
+import logging
+from app.core.settings import settings
+
+
+
 
 router = APIRouter(prefix="/execute-query", tags=["External Database"])
 
@@ -16,17 +22,14 @@ def execute_query(
     data: ExecuteQueryRequest, db: Session = Depends(get_db)
 ):
     print(data)
-    # Fetch external database details
     external_db = db.query(ExternalDBModel).filter(ExternalDBModel.id == data.external_db_id).first()
     if not external_db:
         raise HTTPException(status_code=404, detail="External database not found")
 
-    # Fetch generated query
     generated_query = db.query(GeneratedQuery).filter(GeneratedQuery.id == data.query_id).first()
     if not generated_query:
         raise HTTPException(status_code=404, detail="Query not found")
 
-    # Execute query on the external database
     result = execute_external_query(external_db, generated_query.query_text)
     return {
         "result": result,
@@ -91,7 +94,78 @@ def load_more_queries(external_db_id: str, db: Session = Depends(get_db), curren
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Error fetching queries: {str(e)}")
     
+@router.post("/update-time-based", response_model=TimeBasedQueriesUpdateResponse)
+async def update_dashboard_queries(request_data: TimeBasedUpdateRequest, db: Session = Depends(get_db)):
+    try:
+        updated_queries_response = await process_time_based_queries(
+            db=db,
+            dashboard_id = request_data.dashboard_id,
+            min_date = request_data.min_date,
+            max_date = request_data.max_date,
+            api_key = '',
+            llm_url = settings.LLM_URI
+        )
+        return updated_queries_response
 
-@router.post("/create-default-dashboard")
-def create_default_dashboard(data: CreateDefaultDashboardRequest, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
-    pass
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating queries: {str(e)}")
+    
+
+
+@router.get("/get-dashboards", response_model=list[DashboardSchema])
+def fetch_user_dashboards(user_id: str, external_db_id: int, db: Session = Depends(get_db)):
+    dashboards = db.query(Dashboard).filter(
+        Dashboard.user_project_role_id == user_id,
+        Dashboard.external_db_id == external_db_id  
+    ).all()
+
+    if not dashboards:
+        raise HTTPException(status_code=404, detail="No dashboards found for this user and external database.")
+
+    return [{"dashboard_id": d.id, "dashboard_name": d.name} for d in dashboards]
+
+@router.post("/create-dashboard")
+def create_dashboard(data: CreateDefaultDashboardRequest, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
+    """
+    Create or update a dashboard for the user with selected queries.
+    If no name is provided, the default name is "Main Dashboard".
+    """
+    try:
+        user_id = current_user.user_id
+        role_id = data.role_id
+        dashboard_name = data.name if data.name else "Untitled Dashboard"
+
+        dashboard = create_or_get_dashboard(db, dashboard_name, data.db_entry_id, user_id, role_id)
+
+        return {
+            "message": "Dashboard created successfully",
+            "dashboard_id": str(dashboard.id),
+        }
+    except HTTPException as e:
+        raise e
+
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+    
+@router.post("/add-queries-to-dashboard")
+def add_queries_to_dashboard_endpoint(data: AddQueriesToDashboardRequest, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
+    """
+    Add queries to an existing dashboard.
+    """
+    dashboard = db.query(Dashboard).filter(Dashboard.id == data.dashboard_id).first()
+    if not dashboard:
+        raise HTTPException(status_code=404, detail="Dashboard not found.")
+    
+    queries_added = add_queries_to_dashboard(db, dashboard, data.query_ids)
+
+    return {
+        "message": "Queries added successfully",
+        "dashboard_id": str(dashboard.id),
+        "queries_added": len(queries_added)
+    }
