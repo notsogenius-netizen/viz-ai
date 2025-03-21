@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional, Any, List
 from uuid import UUID
+from datetime import datetime
 
 class CreateUserRequest(BaseModel):
     name: str
@@ -100,5 +101,19 @@ class CreateDefaultDashboardRequest(BaseModel):
     role_id: UUID
 
 class AddQueriesToDashboardRequest(BaseModel):
+    name: Optional[str] = None
     dashboard_id: UUID
     query_ids: List[UUID]
+
+class DashboardResponse(BaseModel):
+    id: UUID
+    name: str
+    created_at: datetime
+    external_db_id: UUID
+
+    class Config:
+        orm_mode = True
+
+class DashboardQueryDeleteRequest(BaseModel):
+    dashboard_id: UUID
+    query_ids: list[UUID]

@@ -48,19 +48,15 @@ def transform_data_dynamic(data):
     if not data:
         return []
 
-    # Get the field names dynamically from the first record
     keys = list(data[0].keys())
 
     if len(keys) < 2:
         raise ValueError("Data must contain at least two fields (one for label and one for value).")
 
-    # Assume the first column is the label and the second column is the value
-    label_field = keys[0]   # Example: "date", "year_month"
-    value_field = keys[1]   # Example: "amount", "total"
+    label_field = keys[0]
+    value_field = keys[1]
 
     return [{"label": str(item[label_field]), "value": item[value_field]} for item in data]
-
-logger = logging.getLogger(__name__)
 
 async def process_time_based_queries(
     db: Session,
@@ -299,3 +295,100 @@ def add_queries_to_dashboard(db: Session, dashboard: Dashboard, query_ids: list[
 
     except Exception as e:  # Catch any unexpected errors
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+def fetch_dashboard_chart_data(db: Session, dashboard_id: UUID):
+    """
+    Fetch queries for a given dashboard, execute them, and return the results.
+    """
+    try:
+        # 🔹 Fetch the dashboard
+        dashboard = db.query(Dashboard).filter(Dashboard.id == dashboard_id).first()
+        if not dashboard:
+            raise HTTPException(status_code=404, detail="Dashboard not found.")
+
+        # 🔹 Fetch related queries
+        queries = dashboard.queries
+        if not queries:
+            raise HTTPException(status_code=400, detail="No queries found for this dashboard.")
+
+        # 🔹 Execute Queries and Collect Results
+        chart_data = []
+        for query in queries:
+            external_db = db.query(ExternalDBModel).filter(ExternalDBModel.id == dashboard.external_db_id).first()
+            if not external_db:
+                raise HTTPException(status_code=400, detail="External database not found.")
+
+            try:
+                # Execute the query on the external DB
+                result = execute_external_query(external_db, query.query_text)
+                chart_data.append({
+                    "query_id": str(query.id),
+                    "query_text": query.query_text,
+                    "result": result,
+                    "chart_type": query.chart_type
+                })
+            except Exception as e:
+                logger.error(f"Query execution failed for query {query.id}: {str(e)}")
+                continue 
+
+        return {
+            "dashboard_id": str(dashboard.id),
+            "chart_data": chart_data
+        }
+
+    except HTTPException as e:
+        logger.warning(f"Dashboard Fetch Warning: {e.detail}")
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error in fetch_dashboard_chart_data for dashboard {dashboard_id}")
+        raise HTTPException(status_code=500, detail="Error fetching chart data.")
+    
+def remove_queries_from_dashboard(db: Session, dashboard_id: UUID, query_ids: list[UUID]):
+    """
+    Remove specified queries from a dashboard.
+    """
+    try:
+        # Fetch the dashboard
+        dashboard = db.query(Dashboard).filter(Dashboard.id == dashboard_id).first()
+        if not dashboard:
+            raise HTTPException(status_code=404, detail="Dashboard not found.")
+
+        # Remove queries
+        queries_to_remove = [query for query in dashboard.queries if query.id in query_ids]
+        if not queries_to_remove:
+            raise HTTPException(status_code=400, detail="No valid queries found to remove.")
+
+        for query in queries_to_remove:
+            dashboard.queries.remove(query)
+
+        db.commit()
+        return queries_to_remove
+
+    except HTTPException as e:
+        logger.warning(f"Dashboard Query Removal Warning: {e.detail}")
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error in remove_queries_from_dashboard for dashboard {dashboard_id}")
+        raise HTTPException(status_code=500, detail="Error removing queries.")
+    
+def delete_dashboard(db: Session, dashboard_id: UUID):
+    """
+    Delete a dashboard and all associated queries.
+    """
+    try:
+        # Fetch the dashboard
+        dashboard = db.query(Dashboard).filter(Dashboard.id == dashboard_id).first()
+        if not dashboard:
+            raise HTTPException(status_code=404, detail="Dashboard not found.")
+
+        # Remove all queries from the dashboard
+        dashboard.queries.clear()
+        db.delete(dashboard)
+        db.commit()
+
+    except HTTPException as e:
+        logger.warning(f"Dashboard Deletion Warning: {e.detail}")
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error in delete_dashboard for dashboard {dashboard_id}")
+        raise HTTPException(status_code=500, detail="Error deleting dashboard.")

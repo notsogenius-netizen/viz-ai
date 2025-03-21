@@ -4,18 +4,21 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from app.models.pre_processing import ExternalDBModel, GeneratedQuery
 from app.models.post_processing import Dashboard
-from app.services.post_processing import process_time_based_queries,execute_external_query, get_paginated_queries, create_or_get_dashboard, add_queries_to_dashboard
+from app.services.post_processing import process_time_based_queries,execute_external_query, get_paginated_queries, create_or_get_dashboard, add_queries_to_dashboard, fetch_dashboard_chart_data, remove_queries_from_dashboard, delete_dashboard
 from app.core.db import get_db
-from app.utils.auth_dependencies import get_current_user
-from app.schemas import ExecuteQueryRequest,TimeBasedUpdateRequest,TimeBasedQueriesUpdateResponse,DashboardSchema, CurrentUser, CreateDefaultDashboardRequest, AddQueriesToDashboardRequest
+from app.utils.auth_dependencies import get_current_user, get_user_project_role
+from app.schemas import ExecuteQueryRequest,TimeBasedUpdateRequest,TimeBasedQueriesUpdateResponse,DashboardSchema, CurrentUser, CreateDefaultDashboardRequest, AddQueriesToDashboardRequest, DashboardResponse, DashboardQueryDeleteRequest
 import logging
 from app.core.settings import settings
+from typing import List
+from uuid import UUID
 
 
 
 
 router = APIRouter(prefix="/execute-query", tags=["External Database"])
 
+logger = logging.getLogger("app")
 
 @router.post("/")
 def execute_query(
@@ -153,19 +156,132 @@ def create_dashboard(data: CreateDefaultDashboardRequest, db: Session = Depends(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
     
-@router.post("/add-queries-to-dashboard")
+@router.patch("/add-queries-to-dashboard")
 def add_queries_to_dashboard_endpoint(data: AddQueriesToDashboardRequest, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
     """
     Add queries to an existing dashboard.
     """
-    dashboard = db.query(Dashboard).filter(Dashboard.id == data.dashboard_id).first()
-    if not dashboard:
-        raise HTTPException(status_code=404, detail="Dashboard not found.")
-    
-    queries_added = add_queries_to_dashboard(db, dashboard, data.query_ids)
+    try:
+        dashboard = db.query(Dashboard).filter(Dashboard.id == data.dashboard_id).first()
+        if not dashboard:
+            raise HTTPException(status_code=404, detail="Dashboard not found.")
+        
+        if data.name:
+                dashboard.name = data.name
+        
+        queries_added = add_queries_to_dashboard(db, dashboard, data.query_ids)
 
-    return {
-        "message": "Queries added successfully",
-        "dashboard_id": str(dashboard.id),
-        "queries_added": len(queries_added)
-    }
+        db.commit()
+
+        return {
+            "message": "Queries added successfully",
+            "dashboard_id": str(dashboard.id),
+            "queries_added": len(queries_added)
+        }
+    except HTTPException as e:
+        raise e 
+
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+@router.get("/dashboards", response_model=List[DashboardResponse])
+def get_user_dashboards(
+    role_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """
+    Fetch all dashboards for the current user with a specific role.
+    """
+    try:
+        user_id = current_user.user_id
+
+        # Fetch user_project_role
+        user_project_role = get_user_project_role(db, user_id, role_id)
+
+        if not user_project_role:
+            raise HTTPException(status_code=404, detail="User project role not found.")
+
+        # Fetch dashboards linked to the user_project_role
+        dashboards = db.query(Dashboard).filter(
+            Dashboard.user_project_role_id == user_project_role.id
+        ).all()
+
+        if not dashboards:
+            raise HTTPException(status_code=404, detail="No dashboards found.")
+
+        return dashboards
+
+    except HTTPException as e:
+        raise e
+
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+    
+@router.get("/dashboard/chart-data")
+def get_dashboard_chart_data(
+    dashboard_id: UUID, 
+    db: Session = Depends(get_db), 
+    current_user=Depends(get_current_user)
+):
+    """
+    Fetch chart data for a given dashboard.
+    """
+    try:
+        return fetch_dashboard_chart_data(db, dashboard_id)
+    except HTTPException as e:
+        logger.error(f"HTTP Error: {e.detail}")
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error while fetching chart data for dashboard {dashboard_id}")
+        raise HTTPException(status_code=500, detail="Internal server error.")
+    
+@router.delete("/dashboard/delete-queries")
+def remove_queries(
+    data: DashboardQueryDeleteRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """
+    Remove specific queries from a dashboard.
+    """
+    try:
+        removed_queries = remove_queries_from_dashboard(db, data.dashboard_id, data.query_ids)
+        return {
+            "message": "Queries removed successfully",
+            "dashboard_id": str(data.dashboard_id),
+            "queries_removed": len(removed_queries)
+        }
+    except HTTPException as e:
+        logger.error(f"HTTP Error: {e.detail}")
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error while removing queries from dashboard {data.dashboard_id}")
+        raise HTTPException(status_code=500, detail="Internal server error.")
+    
+@router.delete("/dashboard")
+def delete_dashboard_endpoint(
+    dashboard_id: UUID,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    """
+    Delete a dashboard and all associated queries.
+    """
+    try:
+        delete_dashboard(db, dashboard_id)
+        return {"message": "Dashboard deleted successfully", "dashboard_id": str(dashboard_id)}
+    except HTTPException as e:
+        logger.error(f"HTTP Error: {e.detail}")
+        raise
+    except Exception as e:
+        logger.exception(f"Unexpected error while deleting dashboard {dashboard_id}")
+        raise HTTPException(status_code=500, detail="Internal server error.")
