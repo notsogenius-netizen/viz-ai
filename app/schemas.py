@@ -60,8 +60,8 @@ class ExternalDBCreateChatRequest(BaseModel):
     nl_query:str
     
 class ExecuteQueryRequest(BaseModel):
-    external_db_id: int
-    query_id: int
+    external_db_id: str
+    query_id: str
     
 class QueryWithId(BaseModel):
     query_id: str

@@ -116,19 +116,6 @@ async def update_dashboard_queries(request_data: TimeBasedUpdateRequest, db: Ses
         raise HTTPException(status_code=500, detail=f"Error updating queries: {str(e)}")
     
 
-
-@router.get("/get-dashboards", response_model=list[DashboardSchema])
-def fetch_user_dashboards(user_id: str, external_db_id: int, db: Session = Depends(get_db)):
-    dashboards = db.query(Dashboard).filter(
-        Dashboard.user_project_role_id == user_id,
-        Dashboard.external_db_id == external_db_id  
-    ).all()
-
-    if not dashboards:
-        raise HTTPException(status_code=404, detail="No dashboards found for this user and external database.")
-
-    return [{"dashboard_id": d.id, "dashboard_name": d.name} for d in dashboards]
-
 @router.post("/create-dashboard")
 def create_dashboard(data: CreateDefaultDashboardRequest, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
     """
