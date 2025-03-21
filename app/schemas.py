@@ -33,7 +33,7 @@ class ExternalDBCreateRequest(BaseModel):
     password:Optional[str] = None
     host:Optional[str] = None
     db_name:Optional[str] = None
-    username:Optional[str] = None
+    name:Optional[str] = None
     
     
 

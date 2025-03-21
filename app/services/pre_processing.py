@@ -36,7 +36,7 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
             db.commit()
             db.refresh(new_user_project_role)
             db_type = data.db_type.lower()
-            username = data.username
+            username = data.name
             password = quote_plus(data.password)
             host = data.host
             db_name=data.db_name
