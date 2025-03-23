@@ -60,8 +60,8 @@ class ExternalDBCreateChatRequest(BaseModel):
     nl_query:str
     
 class ExecuteQueryRequest(BaseModel):
-    external_db_id: str
-    query_id: str
+    external_db_id: UUID
+    query_id: UUID
     
 class QueryWithId(BaseModel):
     query_id: str
@@ -71,8 +71,7 @@ class TimeBasedQueriesUpdateRequest(BaseModel):
     queries: List[QueryWithId]
     min_date: str
     max_date: str
-    db_type: str  
-      
+    db_type: str     
 class QueryDateUpdateResponse(BaseModel):
     query_id: str 
     original_query: str 
@@ -84,12 +83,12 @@ class TimeBasedQueriesUpdateResponse(BaseModel):
     updated_queries: List[QueryDateUpdateResponse]
     
 class TimeBasedUpdateRequest(BaseModel):
-    dashboard_id: int
+    dashboard_id: UUID
     min_date: str
     max_date: str
     
 class DashboardSchema(BaseModel):
-    dashboard_id: int
+    dashboard_id: UUID
     dashboard_name: str
 
     class Config:

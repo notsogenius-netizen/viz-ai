@@ -35,7 +35,9 @@ def execute_query(
 
     result = execute_external_query(external_db, generated_query.query_text)
     return {
-        "result": result,
+        "result": result["data"],
+        "x-axis": result["x_axis"],
+        "y-axis": result["y_axis"],
         "id": generated_query.id,
         "chartType": generated_query.chart_type,
         "report": generated_query.explanation
@@ -100,21 +102,25 @@ def load_more_queries(external_db_id: str, db: Session = Depends(get_db), curren
 @router.post("/update-time-based", response_model=TimeBasedQueriesUpdateResponse)
 async def update_dashboard_queries(request_data: TimeBasedUpdateRequest, db: Session = Depends(get_db)):
     try:
+        llm_base_url = "http://0.0.0.0:8000"  
+        llm_url = f"{llm_base_url}/update_time_based_queries/"
+        
         updated_queries_response = await process_time_based_queries(
             db=db,
-            dashboard_id = request_data.dashboard_id,
-            min_date = request_data.min_date,
-            max_date = request_data.max_date,
-            api_key = '',
-            llm_url = settings.LLM_URI
+            dashboard_id=str(request_data.dashboard_id),
+            min_date=request_data.min_date,
+            max_date=request_data.max_date,
+            api_key="",  
+            llm_url=llm_url
         )
+
         return updated_queries_response
 
     except HTTPException as e:
         raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating queries: {str(e)}")
-    
+
 
 @router.post("/create-dashboard")
 def create_dashboard(data: CreateDefaultDashboardRequest, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):

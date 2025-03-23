@@ -2,6 +2,7 @@
 from typing import Dict, Any, List, Tuple, Optional
 import logging
 import httpx
+import json
 from sqlalchemy import text
 from app.models.pre_processing import ExternalDBModel,GeneratedQuery
 from app.models.post_processing import Dashboard, DashboardQueryAssociation
@@ -12,6 +13,7 @@ from app.utils.schema_structure import get_external_db_session
 from app.utils.auth_dependencies import get_user_project_role
 from app.schemas import TimeBasedQueriesUpdateRequest, TimeBasedQueriesUpdateResponse, QueryWithId
 from uuid import UUID
+from datetime import date
 
 logger = logging.getLogger("app")
 
@@ -41,33 +43,39 @@ def execute_external_query(external_db: ExternalDBModel, query: str):
 def transform_data_dynamic(data):
     """
     Transforms an array of dictionaries into the required format by dynamically detecting fields.
-    
+    Also returns the detected x-axis and y-axis labels.
+
     :param data: List of dictionaries with unknown key names
-    :return: List of transformed dictionaries
+    :return: Dictionary containing transformed data and axis labels
     """
     if not data:
-        return []
+        return {"data": [], "x_axis": None, "y_axis": None}
 
     keys = list(data[0].keys())
 
     if len(keys) < 2:
         raise ValueError("Data must contain at least two fields (one for label and one for value).")
 
-    label_field = keys[0]
-    value_field = keys[1]
+    x_axis = keys[0]  # First key for x-axis
+    y_axis = keys[1]  # Second key for y-axis
 
-    return [{"label": str(item[label_field]), "value": item[value_field]} for item in data]
+    transformed_data = [{"label": str(item[x_axis]), "value": item[y_axis]} for item in data]
+
+    return {"data": transformed_data, "x_axis": x_axis, "y_axis": y_axis}
+
 
 async def process_time_based_queries(
     db: Session,
-    dashboard_id: int,
+    dashboard_id: str,
     min_date: str,
     max_date: str,
     api_key: str,
     llm_url: str
 ) -> TimeBasedQueriesUpdateResponse:
     try:
-        dashboard = db.query(Dashboard).filter(Dashboard.id == dashboard_id).first()
+        dashboard_uuid = UUID(dashboard_id)
+
+        dashboard = db.query(Dashboard).filter(Dashboard.id == dashboard_uuid).first()
         if not dashboard:
             raise HTTPException(status_code=404, detail="Dashboard not found.")
 
@@ -75,9 +83,10 @@ async def process_time_based_queries(
         if not external_db:
             raise HTTPException(status_code=404, detail="External database not found.")
 
-        db_type = external_db.database_provider.lower()  # Set DB type dynamically
+        db_type = external_db.database_provider.lower()
+
         queries = db.query(GeneratedQuery).filter(
-            GeneratedQuery.dashboards.any(id=dashboard_id),
+            GeneratedQuery.dashboards.any(id=dashboard_uuid),
             GeneratedQuery.is_time_based == True
         ).all()
 
@@ -85,6 +94,10 @@ async def process_time_based_queries(
             raise HTTPException(status_code=404, detail="No time-based queries found for this dashboard.")
 
         query_list = [QueryWithId(query_id=str(q.id), query=q.query_text) for q in queries]
+
+        min_date = min_date.isoformat() if isinstance(min_date, date) else str(min_date)
+        max_date = max_date.isoformat() if isinstance(max_date, date) else str(max_date)
+
         request_data = TimeBasedQueriesUpdateRequest(
             queries=query_list,
             min_date=min_date,
@@ -92,21 +105,25 @@ async def process_time_based_queries(
             db_type=db_type  
         )
 
+        logger.info(f"Sending JSON Payload to LLM: {json.dumps(request_data.model_dump(), indent=2)}")
+
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(llm_url, json=request_data.dict(), headers={"Authorization": f"Bearer {api_key}"})
-            response.raise_for_status()
-            updated_queries_response = TimeBasedQueriesUpdateResponse(**response.json())
+            response = await client.post(
+                llm_url,
+                json=request_data.model_dump(),
+            )
+            try:
+                response.raise_for_status()
+                response_json = response.json()
+                if not response_json:
+                    raise ValueError("Empty response from LLM")
+                logger.info(f"LLM Response: {json.dumps(response_json, indent=2)}")
+            except Exception as e:
+                logger.error(f"Failed to parse LLM response: {str(e)}")
+                raise HTTPException(status_code=500, detail="Invalid response from LLM service.")
 
-        for updated_query in updated_queries_response.updated_queries:
-            query_entry = db.query(GeneratedQuery).filter(GeneratedQuery.id == int(updated_query.query_id)).first()
-
-            if query_entry:
-                if updated_query.success:
-                    query_entry.query_text = updated_query.updated_query
-                    logger.info(f"Updated query {query_entry.id} successfully.")
-                else:
-                    logger.error(f"Failed to update query {query_entry.id}: {updated_query.error}")
-        db.commit()
+        updated_queries_response = TimeBasedQueriesUpdateResponse(**response_json)
+        await update_queries_in_db(db, updated_queries_response.updated_queries)
 
         return updated_queries_response
 
@@ -120,17 +137,17 @@ async def process_time_based_queries(
         logger.error(f"Unexpected error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing time-based queries: {str(e)}")
 
-        
+
 async def update_queries_in_db(db: Session, updated_queries):
     for updated_query in updated_queries:
-        query_entry = db.query(GeneratedQuery).filter(GeneratedQuery.id == int(updated_query.query_id)).first()
+        query_entry = db.query(GeneratedQuery).filter(GeneratedQuery.id == UUID(updated_query.query_id)).first()
         
         if query_entry:
             if updated_query.success:
                 query_entry.query_text = updated_query.updated_query
                 db.commit()
                 db.refresh(query_entry)
-                logger.info(f"Updated query {query_entry.id} successfully.")
+                logger.info(f"Query {query_entry.id} updated successfully.")
             else:
                 logger.error(f"Failed to update query {query_entry.id}: {updated_query.error}")
 
