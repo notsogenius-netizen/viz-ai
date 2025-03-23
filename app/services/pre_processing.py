@@ -243,7 +243,7 @@ async def save_nl_sql_query(sql_response, db: Session, db_entry_id, user_id):
             db.add(new_query)
             db.commit()
             
-            return {"status": "success", "message": "SQL query saved successfully", "query_id": new_query.id}
+            return {"status": "success", "message": "SQL query saved successfully", "query_id": str(new_query.id)}
         else:
             raise HTTPException(status_code=400, detail="No SQL query found in the response")
     except HTTPException as http_exc:

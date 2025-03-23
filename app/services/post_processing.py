@@ -41,22 +41,25 @@ def execute_external_query(external_db: ExternalDBModel, query: str):
 def transform_data_dynamic(data):
     """
     Transforms an array of dictionaries into the required format by dynamically detecting fields.
-    
+    Also returns the detected x-axis and y-axis labels.
+
     :param data: List of dictionaries with unknown key names
-    :return: List of transformed dictionaries
+    :return: Dictionary containing transformed data and axis labels
     """
     if not data:
-        return []
+        return {"data": [], "x_axis": None, "y_axis": None}
 
     keys = list(data[0].keys())
 
     if len(keys) < 2:
         raise ValueError("Data must contain at least two fields (one for label and one for value).")
 
-    label_field = keys[0]
-    value_field = keys[1]
+    x_axis = keys[0]  # First key for x-axis
+    y_axis = keys[1]  # Second key for y-axis
 
-    return [{"label": str(item[label_field]), "value": item[value_field]} for item in data]
+    transformed_data = [{"label": str(item[x_axis]), "value": item[y_axis]} for item in data]
+
+    return {"data": transformed_data, "x_axis": x_axis, "y_axis": y_axis}
 
 async def process_time_based_queries(
     db: Session,
@@ -84,16 +87,27 @@ async def process_time_based_queries(
         if not queries:
             raise HTTPException(status_code=404, detail="No time-based queries found for this dashboard.")
 
-        query_list = [QueryWithId(query_id=str(q.id), query=q.query_text) for q in queries]
-        request_data = TimeBasedQueriesUpdateRequest(
-            queries=query_list,
-            min_date=min_date,
-            max_date=max_date,
-            db_type=db_type  
-        )
-
+        query_list = [
+            {
+                'query_id': str(q.id),  # Ensure the UUID is converted to a string
+                'query': q.query_text
+            }
+            for q in queries
+        ]
+        request_data = {
+            "queries": query_list,
+            "min_date":min_date,
+            "max_date":max_date,
+            "db_type": db_type  
+        }
+        print(request_data)
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(llm_url, json=request_data.dict(), headers={"Authorization": f"Bearer {api_key}"})
+            response = await client.post(llm_url, json={
+                "db_type": db_type,
+                "queries": query_list,
+                "min_date": min_date,
+                "max_date": max_date,
+            })
             response.raise_for_status()
             updated_queries_response = TimeBasedQueriesUpdateResponse(**response.json())
 
@@ -323,8 +337,10 @@ def fetch_dashboard_chart_data(db: Session, dashboard_id: UUID):
                 result = execute_external_query(external_db, query.query_text)
                 chart_data.append({
                     "query_id": str(query.id),
-                    "query_text": query.query_text,
-                    "result": result,
+                    "query_text": query.explanation,
+                    "result": result["data"],
+                    "x_axis": result["x_axis"],
+                    "y_axis": result["y_axis"],
                     "chart_type": query.chart_type
                 })
             except Exception as e:

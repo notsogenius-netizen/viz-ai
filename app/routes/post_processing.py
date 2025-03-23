@@ -12,7 +12,7 @@ import logging
 from app.core.settings import settings
 from typing import List
 from uuid import UUID
-
+import json
 
 
 
@@ -35,7 +35,9 @@ def execute_query(
 
     result = execute_external_query(external_db, generated_query.query_text)
     return {
-        "result": result,
+        "result": result["data"],
+        "x_axis": result["x_axis"],
+        "y_axis": result["y_axis"],
         "id": generated_query.id,
         "chartType": generated_query.chart_type,
         "report": generated_query.explanation
@@ -73,7 +75,7 @@ def get_existing_or_initial_queries(
         raise HTTPException(status_code=400, detail="No queries available.")
     
     for query in first_queries:
-        print(query.is_time_based)
+        print(query.explanation)
 
     return {"count": len(first_queries), "queries_list": first_queries}
 
@@ -85,7 +87,7 @@ def load_more_queries(external_db_id: str, db: Session = Depends(get_db), curren
         count = 0
         for query in queries:
             count += 1
-            q = query.is_time_based
+            print(query.explanation)
         
         return {
             "count": count,
@@ -100,18 +102,22 @@ def load_more_queries(external_db_id: str, db: Session = Depends(get_db), curren
 @router.post("/update-time-based", response_model=TimeBasedQueriesUpdateResponse)
 async def update_dashboard_queries(request_data: TimeBasedUpdateRequest, db: Session = Depends(get_db)):
     try:
+        print(request_data)
+        llm_base_url = "http://192.168.1.11:8000"
+        llm_url = f"{llm_base_url}/update_time_based_queries"
+        dashboard_id_str = str(request_data.dashboard_id)
+
         updated_queries_response = await process_time_based_queries(
             db=db,
-            dashboard_id = request_data.dashboard_id,
-            min_date = request_data.min_date,
-            max_date = request_data.max_date,
-            api_key = '',
-            llm_url = settings.LLM_URI
+            dashboard_id=dashboard_id_str,
+            min_date=request_data.min_date,
+            max_date=request_data.max_date,
+            api_key='',
+            llm_url=llm_url
         )
         return updated_queries_response
 
-    except HTTPException as e:
-        raise e
+    
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating queries: {str(e)}")
     
