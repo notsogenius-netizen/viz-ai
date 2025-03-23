@@ -36,7 +36,7 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
             db.commit()
             db.refresh(new_user_project_role)
             db_type = data.db_type.lower()
-            username = data.username
+            username = data.name
             password = quote_plus(data.password)
             host = data.host
             db_name=data.db_name
@@ -47,6 +47,7 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
                 schema_structure = get_schema_structure(reconstructed_conn_string,db_type)
             elif db_type == "mysql":
                 reconstructed_conn_string = f"mysql+pymysql://{username}:{password}@{host}/{db_name}"
+                # mysql+pymysql://root:Viridian@7@localhost/classicmodels
                 schema_structure = get_schema_structure(reconstructed_conn_string,db_type)
             else:
                 raise HTTPException(status_code=400, detail="Unsupported database type.")
@@ -216,7 +217,7 @@ async def process_nl_to_sql_query(data: ExternalDBCreateChatRequest, db: Session
             "api_key": data.api_key if hasattr(data, 'api_key') else None
         }
         
-        return nlq_request, db_entry.id
+        return nlq_request, str(db_entry.id)
         
     except HTTPException as http_exc:
         raise http_exc  

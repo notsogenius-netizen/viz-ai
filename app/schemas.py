@@ -34,7 +34,7 @@ class ExternalDBCreateRequest(BaseModel):
     password:Optional[str] = None
     host:Optional[str] = None
     db_name:Optional[str] = None
-    username:Optional[str] = None
+    name:Optional[str] = None
     
     
 
@@ -74,8 +74,7 @@ class TimeBasedQueriesUpdateRequest(BaseModel):
     queries: List[QueryWithId]
     min_date: str
     max_date: str
-    db_type: str  
-      
+    db_type: str     
 class QueryDateUpdateResponse(BaseModel):
     query_id: UUID 
     original_query: str 
@@ -92,7 +91,7 @@ class TimeBasedUpdateRequest(BaseModel):
     max_date: str
     
 class DashboardSchema(BaseModel):
-    dashboard_id: int
+    dashboard_id: UUID
     dashboard_name: str
 
     class Config:

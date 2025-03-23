@@ -102,38 +102,24 @@ def load_more_queries(external_db_id: str, db: Session = Depends(get_db), curren
 @router.post("/update-time-based", response_model=TimeBasedQueriesUpdateResponse)
 async def update_dashboard_queries(request_data: TimeBasedUpdateRequest, db: Session = Depends(get_db)):
     try:
-        print(request_data)
-        llm_base_url = "http://192.168.1.11:8000"
-        llm_url = f"{llm_base_url}/update_time_based_queries"
-        dashboard_id_str = str(request_data.dashboard_id)
-
+        llm_base_url = "http://0.0.0.0:8000"  
+        llm_url = f"{llm_base_url}/update_time_based_queries/"
+        
         updated_queries_response = await process_time_based_queries(
             db=db,
-            dashboard_id=dashboard_id_str,
+            dashboard_id=str(request_data.dashboard_id),
             min_date=request_data.min_date,
             max_date=request_data.max_date,
-            api_key='',
+            api_key="",  
             llm_url=llm_url
         )
+
         return updated_queries_response
 
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating queries: {str(e)}")
-    
 
-
-@router.get("/get-dashboards", response_model=list[DashboardSchema])
-def fetch_user_dashboards(user_id: str, external_db_id: int, db: Session = Depends(get_db)):
-    dashboards = db.query(Dashboard).filter(
-        Dashboard.user_project_role_id == user_id,
-        Dashboard.external_db_id == external_db_id  
-    ).all()
-
-    if not dashboards:
-        raise HTTPException(status_code=404, detail="No dashboards found for this user and external database.")
-
-    return [{"dashboard_id": d.id, "dashboard_name": d.name} for d in dashboards]
 
 @router.post("/create-dashboard")
 def create_dashboard(data: CreateDefaultDashboardRequest, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
