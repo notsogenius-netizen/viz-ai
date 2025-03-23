@@ -63,7 +63,6 @@ def transform_data_dynamic(data):
 
     return {"data": transformed_data, "x_axis": x_axis, "y_axis": y_axis}
 
-
 async def process_time_based_queries(
     db: Session,
     dashboard_id: str,
@@ -124,6 +123,7 @@ async def process_time_based_queries(
 
         updated_queries_response = TimeBasedQueriesUpdateResponse(**response_json)
         await update_queries_in_db(db, updated_queries_response.updated_queries)
+
 
         return updated_queries_response
 
@@ -340,8 +340,10 @@ def fetch_dashboard_chart_data(db: Session, dashboard_id: UUID):
                 result = execute_external_query(external_db, query.query_text)
                 chart_data.append({
                     "query_id": str(query.id),
-                    "query_text": query.query_text,
-                    "result": result,
+                    "query_text": query.explanation,
+                    "result": result["data"],
+                    "x_axis": result["x_axis"],
+                    "y_axis": result["y_axis"],
                     "chart_type": query.chart_type
                 })
             except Exception as e:

@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional, Any, List
 from uuid import UUID
 from datetime import datetime
+from dataclasses import dataclass, asdict
 
 class CreateUserRequest(BaseModel):
     name: str
@@ -63,9 +64,11 @@ class ExecuteQueryRequest(BaseModel):
     external_db_id: UUID
     query_id: UUID
     
+@dataclass
 class QueryWithId(BaseModel):
-    query_id: str
+    query_id: UUID
     query: str
+    
 
 class TimeBasedQueriesUpdateRequest(BaseModel):
     queries: List[QueryWithId]
@@ -73,7 +76,7 @@ class TimeBasedQueriesUpdateRequest(BaseModel):
     max_date: str
     db_type: str     
 class QueryDateUpdateResponse(BaseModel):
-    query_id: str 
+    query_id: UUID 
     original_query: str 
     updated_query: str 
     success: bool 

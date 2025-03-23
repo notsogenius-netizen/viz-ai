@@ -75,6 +75,7 @@ logger = logging.getLogger(__name__)
 @router.post("/nl-to-sql", status_code=status.HTTP_200_OK)
 async def convert_nl_to_sql(data: ExternalDBCreateChatRequest = Body(...), db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
         base_uri = "http://0.0.0.0:8000"
+
         url = f"{base_uri}/api/nlq/convert_nl_to_sql"
         print("Recivied data",data)
         user_id = current_user.user_id

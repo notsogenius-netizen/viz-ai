@@ -12,7 +12,7 @@ import logging
 from app.core.settings import settings
 from typing import List
 from uuid import UUID
-
+import json
 
 
 
@@ -36,8 +36,8 @@ def execute_query(
     result = execute_external_query(external_db, generated_query.query_text)
     return {
         "result": result["data"],
-        "x-axis": result["x_axis"],
-        "y-axis": result["y_axis"],
+        "x_axis": result["x_axis"],
+        "y_axis": result["y_axis"],
         "id": generated_query.id,
         "chartType": generated_query.chart_type,
         "report": generated_query.explanation
@@ -75,7 +75,7 @@ def get_existing_or_initial_queries(
         raise HTTPException(status_code=400, detail="No queries available.")
     
     for query in first_queries:
-        print(query.is_time_based)
+        print(query.explanation)
 
     return {"count": len(first_queries), "queries_list": first_queries}
 
@@ -87,7 +87,7 @@ def load_more_queries(external_db_id: str, db: Session = Depends(get_db), curren
         count = 0
         for query in queries:
             count += 1
-            q = query.is_time_based
+            print(query.explanation)
         
         return {
             "count": count,
@@ -116,8 +116,7 @@ async def update_dashboard_queries(request_data: TimeBasedUpdateRequest, db: Ses
 
         return updated_queries_response
 
-    except HTTPException as e:
-        raise e
+    
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating queries: {str(e)}")
 
