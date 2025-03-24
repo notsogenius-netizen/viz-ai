@@ -65,9 +65,14 @@ def get_existing_or_initial_queries(
         .all()
     )
 
-    llm_generated = [query for query in sent_queries if not query.is_user_generated]
-    user_generated = [query for query in sent_queries if query.is_user_generated]
+    user_generated = db.query(GeneratedQuery).filter(
+        GeneratedQuery.user_id == user_id,
+        GeneratedQuery.external_db_id == external_db_id,
+        GeneratedQuery.is_user_generated == True
+    ).order_by(GeneratedQuery.created_at).all()
 
+    llm_generated = [query for query in sent_queries if not query.is_user_generated]
+    
     if not sent_queries:
         initial_queries = get_paginated_queries(db, user_id, external_db_id)
 
