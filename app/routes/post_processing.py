@@ -12,7 +12,6 @@ import logging
 from app.core.settings import settings
 from typing import List
 from uuid import UUID
-import json
 
 
 
