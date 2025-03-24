@@ -12,66 +12,69 @@ from app.core.settings import settings
 
 router = APIRouter(prefix="/external-db", tags=["External Database"])
 
+logger = logging.getLogger("app")
+
+
 @router.post("/", response_model=ExternalDBResponse, status_code=status.HTTP_201_CREATED)
-async def create_external_db(data: ExternalDBCreateRequest, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
+async def create_external_db(
+    data: ExternalDBCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user)
+):
     """
     API to connect to an external database, retrieve schema, and store it in the internal database.
     """
+    logger.info("Initiating external DB creation for user: %s", current_user.user_id)
     try:
-        return await create_or_update_external_db(data, db, current_user)
+        result = await create_or_update_external_db(data, db, current_user)
+        logger.info("Successfully created/updated external DB for user: %s", current_user.user_id)
+        return result
     except IntegrityError:
         db.rollback()
+        logger.warning("Database constraint violation during external DB creation for user: %s", current_user.user_id)
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Database constraint violation.")
-
     except HTTPException as http_exc:
         db.rollback()
-        raise http_exc  # Re-raise expected HTTP exceptions
-
+        logger.error("HTTP exception during external DB creation for user: %s - %s", current_user.user_id, str(http_exc))
+        raise http_exc
     except Exception as e:
         db.rollback()
+        logger.exception("Unexpected error during external DB creation for user: %s", current_user.user_id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error processing external DB: {str(e)}")
 
 @router.patch("/", status_code=status.HTTP_202_ACCEPTED)
-async def update_record_and_call_llm(data: UpdateDBRequest, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
+async def update_record_and_call_llm(
+    data: UpdateDBRequest,
+    db: Session = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user)
+):
     """
-    API to update external db model and call llm service for processing.
+    API to update external DB model and call LLM service for processing.
     """
+    logger.info("Updating record and calling LLM for user: %s", current_user.user_id)
     base_uri = "http://192.168.1.5:8000"
-
     url = f"{base_uri}/queries/"
-    
     try:
         saved_data = await update_record(data, db, current_user)
-        print(saved_data)
+        logger.debug("Record updated successfully for user: %s, data: %s", current_user.user_id, saved_data)
         llm_response = await post_to_llm(url, saved_data)
-        response = await save_query_to_db(queries=llm_response, db= db, db_entry_id= data.db_entry_id, user_id= current_user.user_id)
+        logger.debug("Received response from LLM for user: %s, response: %s", current_user.user_id, llm_response)
+        response = await save_query_to_db(queries=llm_response, db=db, db_entry_id=data.db_entry_id, user_id=current_user.user_id)
+        logger.info("Successfully saved LLM query to DB for user: %s", current_user.user_id)
         return response
-    
     except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=e.response.status_code, 
-            detail=f"LLM service returned an error: {e.response.text}"
-        )
-    
+        logger.error("LLM service returned an error for user: %s - %s", current_user.user_id, e.response.text)
+        raise HTTPException(status_code=e.response.status_code, detail=f"LLM service returned an error: {e.response.text}")
     except httpx.RequestError as e:
-        raise HTTPException(
-            status_code=500, 
-            detail=f"Request to LLM service failed: {str(e)}"
-        )
-    
+        logger.error("Request to LLM service failed for user: %s - %s", current_user.user_id, str(e))
+        raise HTTPException(status_code=500, detail=f"Request to LLM service failed: {str(e)}")
     except ValueError as e:
-        raise HTTPException(
-            status_code=400, 
-            detail=f"Invalid data error: {str(e)}"
-        )
-    
+        logger.warning("Invalid data error for user: %s - %s", current_user.user_id, str(e))
+        raise HTTPException(status_code=400, detail=f"Invalid data error: {str(e)}")
     except Exception as e:
-        raise HTTPException(
-            status_code=500, 
-            detail=f"An unexpected error occurred: {str(e)}"
-        )
+        logger.exception("Unexpected error during record update and LLM call for user: %s", current_user.user_id)
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
-logger = logging.getLogger(__name__)
 @router.post("/nl-to-sql", status_code=status.HTTP_200_OK)
 async def convert_nl_to_sql(data: ExternalDBCreateChatRequest = Body(...), db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
         base_uri = "http://192.168.1.5:8000"

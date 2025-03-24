@@ -11,121 +11,120 @@ from app.utils.cookies import set_auth_cookies
 from app.utils.auth_dependencies import get_user_role
 from app.schemas import LoginUserRequest, CreateUserRequest
 from datetime import timedelta
+import logging
 
+
+logger = logging.getLogger("app")
 
 async def create_user(data: CreateUserRequest, response: Response, db: Session):
+    logger.info("Attempting to create user with email: %s", data.email)
     try:
         user = db.query(UserModel).filter(UserModel.email == data.email).first()
         if user:
-            raise HTTPException(status_code= 442, detail= "Email is already registered")
+            logger.warning("Email already registered: %s", data.email)
+            raise HTTPException(status_code=442, detail="Email is already registered")
         
         new_user = UserModel(
-            name = data.name,
-            email = data.email,
-            password = get_password_hash(data.password),
-            tenant_id = data.tenant_id if data.tenant_id else None
+            name=data.name,
+            email=data.email,
+            password=get_password_hash(data.password),
+            tenant_id=data.tenant_id if data.tenant_id else None
         )
-        
-        access_token_data= {
-            "user_id": new_user.id,
-            "role": None
-        }
-        access_token= create_token(data= access_token_data, expires_delta= timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
-
-        refresh_token_data= {
-            "user_id": new_user.id,
-        }
-        refresh_token= create_token(data= refresh_token_data, expires_delta=timedelta(days= settings.REFRESH_TOKEN_EXPIRE_DAYS))
-
-        new_user.refresh_token = get_password_hash(refresh_token)
-        
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
+        logger.info("User created successfully: %s", new_user.email)
         
-        # set_auth_cookies(response, access_token, refresh_token)
+        access_token_data = {"user_id": new_user.id, "role": None}
+        access_token = create_token(data=access_token_data, expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
 
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token
-        }
+        refresh_token_data = {"user_id": new_user.id}
+        refresh_token = create_token(data=refresh_token_data, expires_delta=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS))
+
+        new_user.refresh_token = get_password_hash(refresh_token)
+        db.commit()
+        db.refresh(new_user)
+        logger.info("Tokens generated and stored for user: %s", new_user.email)
+
+        return {"access_token": access_token, "refresh_token": refresh_token}
     except HTTPException as http_exc:
+        logger.error("HTTPException occurred: %s", http_exc.detail)
         raise http_exc
-
     except IntegrityError:
         db.rollback()
+        logger.error("IntegrityError: User creation failed for email: %s", data.email)
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists or violates constraints")
-
     except ValidationError as val_err:
+        logger.error("ValidationError: %s", str(val_err))
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
-
     except Exception as e:
         db.rollback()
+        logger.exception("Unexpected error during user creation for email: %s", data.email)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
 
 async def login_user(data: LoginUserRequest, response: Response, db: Session):
+    logger.info("Attempting login for email: %s", data.email)
     try:
         user = db.query(UserModel).filter(UserModel.email == data.email).first()
         if not user:
-            raise HTTPException(status_code= status.HTTP_404_NOT_FOUND, detail="Email not registered. Please signup.")
+            logger.warning("Login failed: Email not registered: %s", data.email)
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Email not registered. Please signup.")
         
         if not verify_password(data.password, user.password):
-            raise HTTPException(status_code= status.HTTP_401_UNAUTHORIZED, detail="Password doesn't match")
-                
-        access_token_data= {
-            "user_id": str(user.id),
-            "role": None
-        }
-        access_token= create_token(data= access_token_data, expires_delta= timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+            logger.warning("Login failed: Incorrect password for email: %s", data.email)
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Password doesn't match")
+        
+        access_token_data = {"user_id": str(user.id), "role": None}
+        access_token = create_token(data=access_token_data, expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
 
-        refresh_token_data= {
-            "user_id": str(user.id),
-        }
-        refresh_token= create_token(data= refresh_token_data, expires_delta=timedelta(days= settings.REFRESH_TOKEN_EXPIRE_DAYS))
+        refresh_token_data = {"user_id": str(user.id)}
+        refresh_token = create_token(data=refresh_token_data, expires_delta=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS))
 
         user.refresh_token = get_password_hash(refresh_token)
         db.commit()
         db.refresh(user)
+        logger.info("User logged in successfully: %s", user.email)
 
-        return {
-            "access_token": access_token,
-            "refresh_token": refresh_token
-        }
+        return {"access_token": access_token, "refresh_token": refresh_token}
     except HTTPException as http_exc:
-        raise http_exc  # Re-raise known HTTP exceptions
-
+        logger.error("HTTPException during login for email %s: %s", data.email, http_exc.detail)
+        raise http_exc
     except ValidationError as val_err:
+        logger.error("ValidationError during login for email %s: %s", data.email, str(val_err))
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(val_err))
-
     except IntegrityError:
-        db.rollback()  # Rollback in case of a database constraint issue
+        db.rollback()
+        logger.error("IntegrityError during login for email: %s", data.email)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
-
     except Exception:
-        db.rollback()  # Ensure rollback on unexpected errors
+        db.rollback()
+        logger.exception("Unexpected error during login for email: %s", data.email)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
 
-async def logout_user(response, db, user_id):
-    try:    
+async def logout_user(response: Response, db: Session, user_id: int):
+    logger.info("Attempting logout for user_id: %d", user_id)
+    try:
         user = db.query(UserModel).filter(UserModel.id == user_id).first()
         if not user:
+            logger.warning("Logout failed: User not found with id: %d", user_id)
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         
         user.refresh_token = None
         db.commit()
         db.refresh(user)
+        logger.info("User logged out successfully: %d", user_id)
 
         return {"message": "Logout successful"}
-
     except HTTPException as http_exc:
-        raise http_exc  # Re-raise known HTTP exceptions
-
+        logger.error("HTTPException during logout for user_id %d: %s", user_id, http_exc.detail)
+        raise http_exc
     except IntegrityError:
         db.rollback()
+        logger.error("IntegrityError during logout for user_id: %d", user_id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database error")
-
     except Exception:
         db.rollback()
+        logger.exception("Unexpected error during logout for user_id: %d", user_id)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal Server Error")
 
 async def refresh_user_token(request: Request, response: Response, db: Session):
