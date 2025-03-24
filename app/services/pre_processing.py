@@ -173,6 +173,7 @@ async def save_query_to_db(queries, db: Session, db_entry_id: int, user_id: UUID
                 relevance=query_data["relevance"],
                 is_time_based=bool(query_data["is_time_based"]),
                 chart_type=query_data["chart_type"],
+                is_user_generated= False
             )
             db.add(query_entry)
             saved_queries.append(query_entry)
@@ -239,7 +240,8 @@ async def save_nl_sql_query(sql_response, db: Session, db_entry_id, user_id):
                 explanation=sql_response.get('explanation', 'Generated from natural language query'),
                 relevance=1.0, 
                 is_time_based=False,  
-                chart_type=sql_response.get('chart_type') 
+                chart_type=sql_response.get('chart_type'),
+                is_user_generated=True
             )
             db.add(new_query)
             db.commit()

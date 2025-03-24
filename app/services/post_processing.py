@@ -160,11 +160,12 @@ def get_paginated_queries(db: Session, user_id: str, external_db_id: str):
             .filter(
                 GeneratedQuery.user_id == user_id,
                 GeneratedQuery.external_db_id == external_db_id,
-                GeneratedQuery.is_sent == True
+                GeneratedQuery.is_sent == True,
+                GeneratedQuery.is_user_generated == False
             )
             .count()
         )
-        logger.debug(f"Sent query count: {sent_count}")
+        logger.debug(f"Sent LLM-generated query count: {sent_count}")
 
         if sent_count >= 30:
             raise HTTPException(status_code=400, detail="No more reloads available.")
@@ -187,7 +188,8 @@ def get_paginated_queries(db: Session, user_id: str, external_db_id: str):
             .filter(
                 GeneratedQuery.user_id == user_id,
                 GeneratedQuery.external_db_id == external_db_id,
-                GeneratedQuery.is_sent == True
+                GeneratedQuery.is_sent == True,
+                GeneratedQuery.is_user_generated == False
             )
             .order_by(GeneratedQuery.created_at)
             .all()
@@ -200,7 +202,8 @@ def get_paginated_queries(db: Session, user_id: str, external_db_id: str):
                 GeneratedQuery.user_id == user_id,
                 GeneratedQuery.external_db_id == external_db_id,
                 GeneratedQuery.is_time_based == True,
-                GeneratedQuery.is_sent == False
+                GeneratedQuery.is_sent == False,
+                GeneratedQuery.is_user_generated == False,
             )
             .order_by(GeneratedQuery.created_at)
             .limit(new_limit // 2)  # Fetch half of the new limit
@@ -213,10 +216,11 @@ def get_paginated_queries(db: Session, user_id: str, external_db_id: str):
                 GeneratedQuery.user_id == user_id,
                 GeneratedQuery.external_db_id == external_db_id,
                 GeneratedQuery.is_time_based == False,
-                GeneratedQuery.is_sent == False
+                GeneratedQuery.is_sent == False,
+                GeneratedQuery.is_user_generated == False,
             )
             .order_by(GeneratedQuery.created_at)
-            .limit(new_limit - len(new_time_based_queries))  # Fill the remaining slots
+            .limit(new_limit - len(new_time_based_queries))
             .all()
         )
 

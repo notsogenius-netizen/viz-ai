@@ -45,6 +45,7 @@ class GeneratedQuery(Base):
     is_time_based = Column(Boolean, nullable=False)
     chart_type = Column(String, nullable= False)
     created_at= Column(DateTime, nullable= False, server_default=func.now())
+    is_user_generated = Column(Boolean, nullable=False, default=False)
 
     dashboards = relationship("Dashboard", secondary="dashboard_query_association", back_populates="queries", overlaps="dashboard_query_links") 
     user = relationship("UserModel", back_populates="queries") 

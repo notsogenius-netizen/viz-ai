@@ -45,14 +45,15 @@ def execute_query(
 
 @router.get("/")
 def get_existing_or_initial_queries(
-    external_db_id: str, 
+    external_db_id: UUID, 
     db: Session = Depends(get_db), 
     current_user: CurrentUser = Depends(get_current_user)
 ):
-    """Fetch already sent queries. If none exist (first visit), load initial 10 queries."""
+    """
+    Fetch already sent queries. If none exist (first visit), load initial 10 queries.
+    """
     user_id = current_user.user_id
 
-    # Check if any queries were already sent
     sent_queries = (
         db.query(GeneratedQuery)
         .filter(
@@ -64,20 +65,21 @@ def get_existing_or_initial_queries(
         .all()
     )
 
-    if sent_queries:
-        # If queries were already sent, return them
-        return {"count": len(sent_queries), "queries_list": sent_queries}
+    llm_generated = [query for query in sent_queries if not query.is_user_generated]
+    user_generated = [query for query in sent_queries if query.is_user_generated]
 
-    # If no queries were sent (first visit), load first 10 queries
-    first_queries = get_paginated_queries(db, user_id, external_db_id)
+    if not sent_queries:
+        initial_queries = get_paginated_queries(db, user_id, external_db_id)
 
-    if not first_queries:
-        raise HTTPException(status_code=400, detail="No queries available.")
-    
-    for query in first_queries:
-        print(query.explanation)
+        if not initial_queries:
+            raise HTTPException(status_code=400, detail="No queries available.")
 
-    return {"count": len(first_queries), "queries_list": first_queries}
+        llm_generated = initial_queries
+
+    return {
+        "queries_list": llm_generated,
+        "user_generated": user_generated
+    }
 
 @router.get("/load-more")
 def load_more_queries(external_db_id: str, db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
