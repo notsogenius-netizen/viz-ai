@@ -66,8 +66,9 @@ class ExecuteQueryRequest(BaseModel):
     
 @dataclass
 class QueryWithId(BaseModel):
-    query_id: UUID
+    query_id: str
     query: str
+    explanation:str
     
 
 class TimeBasedQueriesUpdateRequest(BaseModel):
@@ -79,6 +80,8 @@ class QueryDateUpdateResponse(BaseModel):
     query_id: UUID 
     original_query: str 
     updated_query: str 
+    original_explanation:str
+    updated_explanation:str
     success: bool 
     error: Optional[str] = None
 
