@@ -92,13 +92,15 @@ async def process_time_based_queries(
         if not queries:
             raise HTTPException(status_code=404, detail="No time-based queries found for this dashboard.")
 
-        query_list = [QueryWithId(query_id=str(q.id), query=q.query_text) for q in queries]
+        # query_list = [QueryWithId(query_id=str(q.id), query=q.query_text, explanation=q.explanation) for q in queries]
+        query_list = [{"query_id": str(q.id), "query": q.query_text, "explanation": q.explanation} for q in queries]
 
         min_date = min_date.isoformat() if isinstance(min_date, date) else str(min_date)
         max_date = max_date.isoformat() if isinstance(max_date, date) else str(max_date)
 
         request_data = TimeBasedQueriesUpdateRequest(
             queries=query_list,
+            # queries=[QueryWithId(**query) for query in query_list],  # Convert dicts back to Pydantic models
             min_date=min_date,
             max_date=max_date,
             db_type=db_type  
@@ -140,11 +142,12 @@ async def process_time_based_queries(
 
 async def update_queries_in_db(db: Session, updated_queries):
     for updated_query in updated_queries:
-        query_entry = db.query(GeneratedQuery).filter(GeneratedQuery.id == UUID(updated_query.query_id)).first()
+        query_entry = db.query(GeneratedQuery).filter(GeneratedQuery.id == (updated_query.query_id)).first()
         
         if query_entry:
             if updated_query.success:
                 query_entry.query_text = updated_query.updated_query
+                query_entry.explanation = updated_query.updated_explanation
                 db.commit()
                 db.refresh(query_entry)
                 logger.info(f"Query {query_entry.id} updated successfully.")
