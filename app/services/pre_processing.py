@@ -1,6 +1,6 @@
 import httpx
 import json
-from urllib.parse import quote_plus
+from urllib.parse import urlparse,quote_plus
 from fastapi import HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -11,6 +11,7 @@ from app.utils.crypt import encrypt_string, decrypt_string
 from app.schemas import ExternalDBCreateRequest, ExternalDBResponse, CurrentUser, UpdateDBRequest,NLQResponse, ExternalDBCreateChatRequest
 from datetime import datetime
 from uuid import UUID
+
 
 async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Session, current_user: CurrentUser):
     try:
@@ -29,7 +30,10 @@ async def create_or_update_external_db(data: ExternalDBCreateRequest, db: Sessio
             raise HTTPException(status_code=400, detail="User does not have a role in this project.")
         
         if(data.connection_string):
-            schema_structure = get_schema_structure(data.connection_string,data.db_type)
+            parsed_url = urlparse(data.connection_string)
+            encoded_password = quote_plus(parsed_url.password) if parsed_url else ""
+            connection_string = f"{parsed_url.scheme}://{parsed_url.username}:{encoded_password}@{parsed_url.hostname}{':' + str(parsed_url.port) if parsed_url.port else ''}{parsed_url.path}?{parsed_url.query}"
+            schema_structure = get_schema_structure(connection_string,data.db_type)
             
         else:
             db.add(new_user_project_role)
