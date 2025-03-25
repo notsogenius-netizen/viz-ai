@@ -108,7 +108,7 @@ def load_more_queries(external_db_id: str, db: Session = Depends(get_db), curren
 @router.post("/update-time-based", response_model=TimeBasedQueriesUpdateResponse)
 async def update_dashboard_queries(request_data: TimeBasedUpdateRequest, db: Session = Depends(get_db)):
     try:
-        llm_base_url = "http://192.168.1.5:8000"  
+        llm_base_url = settings.LLM_URI 
         llm_url = f"{llm_base_url}/update_time_based_queries/"
         
         updated_queries_response = await process_time_based_queries(
