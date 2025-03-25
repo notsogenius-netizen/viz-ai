@@ -52,7 +52,7 @@ async def update_record_and_call_llm(
     API to update external DB model and call LLM service for processing.
     """
     logger.info("Updating record and calling LLM for user: %s", current_user.user_id)
-    base_uri = "http://192.168.1.5:8000"
+    base_uri = settings.LLM_URI
     url = f"{base_uri}/queries/"
     try:
         saved_data = await update_record(data, db, current_user)
@@ -77,7 +77,7 @@ async def update_record_and_call_llm(
 
 @router.post("/nl-to-sql", status_code=status.HTTP_200_OK)
 async def convert_nl_to_sql(data: ExternalDBCreateChatRequest = Body(...), db: Session = Depends(get_db), current_user: CurrentUser = Depends(get_current_user)):
-        base_uri = "http://192.168.1.5:8000"
+        base_uri = settings.LLM_URI
 
         url = f"{base_uri}/api/nlq/convert_nl_to_sql"
         print("Recivied data",data)
