@@ -35,10 +35,10 @@ async def create_user(data: CreateUserRequest, response: Response, db: Session):
         db.refresh(new_user)
         logger.info("User created successfully: %s", new_user.email)
         
-        access_token_data = {"user_id": new_user.id, "role": None}
+        access_token_data = {"user_id": str(new_user.id), "role": None}
         access_token = create_token(data=access_token_data, expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
 
-        refresh_token_data = {"user_id": new_user.id}
+        refresh_token_data = {"user_id": str(new_user.id)}
         refresh_token = create_token(data=refresh_token_data, expires_delta=timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS))
 
         new_user.refresh_token = get_password_hash(refresh_token)
